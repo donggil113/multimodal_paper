@@ -37,7 +37,7 @@ import pandas as pd
 from infogain.clinical.net_benefit import (
     bayes_value, check_identity, information_gain_nats, safe_omission_bound_local,
 )
-from infogain.data.synthetic import default_design, generate, ground_truth_table
+from infogain.data.synthetic import generate, ground_truth_table
 from infogain.encoders.train import TrainConfig, fit_family
 from infogain.theory.lemmas import auroc, auroc_hull, best_stratified_bound
 from infogain.utils.io import save_json

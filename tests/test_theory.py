@@ -3,13 +3,24 @@ import numpy as np
 import pytest
 
 from infogain.clinical.net_benefit import (
-    bayes_value, check_identity, empirical_net_benefit, information_gain_nats,
-    min_detectable_gain, model_net_benefit, nest_calibrate, restricted_information,
-    safe_omission_bound_global, safe_omission_bound_local,
+    bayes_value,
+    check_identity,
+    empirical_net_benefit,
+    min_detectable_gain,
+    model_net_benefit,
+    nest_calibrate,
+    restricted_information,
+    safe_omission_bound_global,
+    safe_omission_bound_local,
 )
 from infogain.theory.lemmas import (
-    achievable_auroc_bracket, auroc, auroc_hull, best_stratified_bound, entropy_bits,
-    ks_signed, stratified_auroc_gain_bound, verify_js_tv, verify_ks_auroc,
+    achievable_auroc_bracket,
+    auroc,
+    auroc_hull,
+    entropy_bits,
+    stratified_auroc_gain_bound,
+    verify_js_tv,
+    verify_ks_auroc,
 )
 from infogain.theory.verify import (
     verify_pvi_consistency, verify_safe_omission, verify_schervish_identity,

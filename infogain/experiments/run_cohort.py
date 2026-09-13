@@ -31,10 +31,13 @@ import pandas as pd
 
 from infogain.clinical.cost import CostModel, CostWeights
 from infogain.clinical.net_benefit import (
-    check_identity, empirical_net_benefit, information_gain_nats, nest_calibrate,
-    restricted_information, safe_omission_bound_local,
+    check_identity,
+    empirical_net_benefit,
+    nest_calibrate,
+    restricted_information,
+    safe_omission_bound_local,
 )
-from infogain.clinical.policy import policy_order_all, reduction_study
+from infogain.clinical.policy import reduction_study
 from infogain.data.schema import Cohort
 from infogain.encoders.fusion import FamilyConfig
 from infogain.encoders.train import TrainConfig, fit_family
@@ -42,10 +45,11 @@ from infogain.theory.lemmas import achievable_auroc_bracket, auroc, best_stratif
 from infogain.utils.io import save_json
 from infogain.utils.logging import get_logger
 from infogain.vinfo.conditional import (
-    GainConfig, consistency_check, overlap_diagnostics, patient_expected_gain,
+    GainConfig,
+    overlap_diagnostics,
+    patient_expected_gain,
     retrospective_gain,
 )
-from infogain.vinfo.core import subset_key, v_info_from_pvi
 from infogain.vinfo.decomposition import (
     decomposition_table, lattice_table, monotonicity_report,
     pairwise_interaction_map, shapley_information,

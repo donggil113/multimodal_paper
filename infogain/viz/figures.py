@@ -6,7 +6,6 @@ can be read without relying on colour.
 """
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Sequence
 
 import matplotlib.pyplot as plt
@@ -14,8 +13,17 @@ import numpy as np
 import pandas as pd
 
 from infogain.viz.style import (
-    CATEGORICAL, GRID, HATCH, INK, INK_MUTED, INK_SECONDARY, ROLE, SURFACE,
-    apply_style, despine, diverging_cmap, save, sequential_cmap,
+    CATEGORICAL,
+    GRID,
+    HATCH,
+    INK,
+    INK_MUTED,
+    INK_SECONDARY,
+    ROLE,
+    SURFACE,
+    apply_style,
+    despine,
+    diverging_cmap,
 )
 
 

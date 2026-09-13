@@ -1,13 +1,16 @@
 """Cost model, policies and the reduction study."""
 import numpy as np
-import pandas as pd
 import pytest
 
 from infogain.clinical.cost import CostModel, CostWeights, bits_per_dollar
 from infogain.clinical.net_benefit import decision_curve, empirical_net_benefit
 from infogain.clinical.policy import (
-    evaluate_policy, policy_baseline_only, policy_fixed, policy_infogain,
-    policy_order_all, policy_random, policy_risk_band, probs_under_policy,
+    evaluate_policy,
+    policy_baseline_only,
+    policy_infogain,
+    policy_order_all,
+    policy_risk_band,
+    probs_under_policy,
     reduction_study,
 )
 from infogain.vinfo.core import Modality, ModalitySpec, subset_key

@@ -5,7 +5,10 @@ import pytest
 
 from infogain.data import outcomes as oc
 from infogain.data.mimic_modalities import (
-    LAB_PANEL, TemporalPolicy, extract_labs, extract_meds, resolve_lab_itemids,
+    TemporalPolicy,
+    extract_labs,
+    extract_meds,
+    resolve_lab_itemids,
 )
 from infogain.data.schema import (
     Cohort, ModalityBlock, assign_patient_splits, assign_temporal_splits,

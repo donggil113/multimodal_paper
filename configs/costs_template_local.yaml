@@ -1,0 +1,37 @@
+# Local fee-schedule template.
+#
+# The defaults in `costs_usd.yaml` are indicative US list prices. Absolute
+# savings quoted from them are not transferable: a reduction study is only as
+# meaningful as its price list. Copy this file, fill in your own schedule, and
+# pass it through `CostModel.overrides`.
+#
+# Where to get the numbers:
+#   Korea (NHIS)  건강보험심사평가원 상대가치점수 (relative value units) x the
+#                 annual conversion factor 환산지수; published each year by HIRA.
+#                 Use the total including 종별가산 for the institution type you
+#                 are modelling, not the base RVU.
+#   US (CMS)      Clinical Laboratory Fee Schedule and Physician Fee Schedule.
+#   UK (NHS)      National Cost Collection (formerly Reference Costs).
+#   Elsewhere     the payer's own schedule; hospital list prices are usually a
+#                 poor proxy for what is actually paid.
+#
+# Fill in whichever axes bind in your setting. `turnaround_min` should be the
+# time from order to result being *available to the decision*, not laboratory
+# analysis time; in an emergency department that difference is most of the
+# number. `invasiveness` is a 0-1 score you set: 0 for a record lookup, ~0.05
+# for a venepuncture, ~0.1 for a plain radiograph, higher for anything
+# requiring sedation or contrast.
+#
+# Then:
+#   from infogain.clinical.cost import CostModel, CostWeights
+#   cm = CostModel(cohort.spec, CostWeights.throughput_limited(2.0),
+#                  overrides={"labs": 21000, "ecg": 9500, ...})   # local currency
+#
+# and report the reduction frontier, not a single operating point, so a reader
+# with yet another schedule can locate their own.
+
+labs:  {cost_usd: null, turnaround_min: null, invasiveness: 0.05}
+ecg:   {cost_usd: null, turnaround_min: null, invasiveness: 0.02}
+cxr:   {cost_usd: null, turnaround_min: null, invasiveness: 0.10}
+echo:  {cost_usd: null, turnaround_min: null, invasiveness: 0.10}
+notes: {cost_usd: 0,    turnaround_min: 0,    invasiveness: 0.00}

@@ -35,7 +35,6 @@ import pandas as pd
 from scipy import optimize
 
 from infogain.utils.logging import get_logger
-from infogain.vinfo.bounds import bootstrap_ci
 from infogain.vinfo.core import VInfo, subset_key, v_info_from_pvi
 
 log = get_logger("infogain.vinfo.estimators")

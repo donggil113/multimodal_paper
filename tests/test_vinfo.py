@@ -7,8 +7,15 @@ from infogain.vinfo.bounds import (
     paired_permutation_pvalue, two_sided_bound,
 )
 from infogain.vinfo.core import (
-    LOG2, Modality, ModalitySpec, iter_subsets, label_logprob, paired_gain,
-    parse_key, pointwise_v_information, subset_key, v_info_from_pvi,
+    Modality,
+    ModalitySpec,
+    iter_subsets,
+    label_logprob,
+    paired_gain,
+    parse_key,
+    pointwise_v_information,
+    subset_key,
+    v_info_from_pvi,
 )
 from infogain.vinfo.decomposition import monotone_projection
 from infogain.vinfo.estimators import (

@@ -4,7 +4,10 @@ import pytest
 import torch
 
 from infogain.encoders.fusion import (
-    FamilyConfig, MaskedFusionFamily, MaskSampler, Standardizer, pack,
+    FamilyConfig,
+    MaskedFusionFamily,
+    MaskSampler,
+    Standardizer,
 )
 from infogain.encoders.train import TrainConfig, default_subsets, fit_family
 from infogain.vinfo.core import subset_key

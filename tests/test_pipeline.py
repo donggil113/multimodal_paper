@@ -7,7 +7,6 @@ import pytest
 
 from infogain.clinical.cost import CostModel, CostWeights
 from infogain.clinical.policy import reduction_study
-from infogain.data.synthetic import default_design, generate
 from infogain.encoders.fusion import FamilyConfig
 from infogain.encoders.train import TrainConfig, fit_family
 from infogain.experiments.run_cohort import AnalysisConfig, analyse

@@ -42,7 +42,7 @@ import numpy as np
 import pandas as pd
 import torch
 
-from infogain.encoders.fusion import Standardizer, pack
+from infogain.encoders.fusion import pack
 from infogain.utils.logging import get_logger
 
 log = get_logger("infogain.vinfo.conditional")

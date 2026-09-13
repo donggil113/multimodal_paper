@@ -13,13 +13,18 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from infogain.clinical.net_benefit import (
-    check_identity, information_gain_nats, min_detectable_gain, nest_calibrate,
-    restricted_information, safe_omission_bound_global, safe_omission_bound_local,
+    check_identity,
+    information_gain_nats,
+    nest_calibrate,
+    safe_omission_bound_global,
+    safe_omission_bound_local,
     bayes_value,
 )
 from infogain.theory.lemmas import (
-    LemmaReport, auroc, auroc_hull, best_stratified_bound, entropy_nats,
-    ks_signed, verify_js_tv, verify_ks_auroc,
+    LemmaReport,
+    best_stratified_bound,
+    verify_js_tv,
+    verify_ks_auroc,
 )
 
 LN2 = float(np.log(2.0))
