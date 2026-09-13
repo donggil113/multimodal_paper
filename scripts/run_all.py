@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -32,8 +33,13 @@ def run(cmd: list[str], log_path: Path) -> float:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     print(f"\n$ {' '.join(cmd)}", flush=True)
     t0 = time.time()
+    # Python block-buffers stdout when it is a file, so a multi-hour stage would
+    # show no progress at all until it finished -- which reads exactly like a
+    # hang. Unbuffered output costs nothing here and makes the run observable.
+    env = {**os.environ, "PYTHONUNBUFFERED": "1"}
     with open(log_path, "w") as fh:
-        proc = subprocess.run(cmd, cwd=REPO, stdout=fh, stderr=subprocess.STDOUT)
+        proc = subprocess.run(cmd, cwd=REPO, stdout=fh, stderr=subprocess.STDOUT,
+                              env=env)
     dt = time.time() - t0
     if proc.returncode != 0:
         print(f"  FAILED after {dt:.0f}s -- see {log_path}", flush=True)
