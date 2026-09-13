@@ -339,16 +339,24 @@ def reduction_study(cf, cohort, deltas: dict[str, np.ndarray],
 # --------------------------------------------------------------------------- #
 # Sequential (greedy) acquisition
 # --------------------------------------------------------------------------- #
-def greedy_sequential(cf, cohort, gain_fn, cost_model: CostModel,
-                      orderable: Sequence[str], max_tests: int = 2,
+def greedy_sequential(cf, gain_by_context: dict[tuple[str, ...], dict[str, np.ndarray]],
+                      cost_model: CostModel, orderable: Sequence[str],
+                      max_tests: int = 2,
                       lambda_bits_per_dollar: float = 0.0) -> PolicyResult:
-    r"""Acquire tests one at a time, re-scoring after each.
+    r"""Acquire tests one at a time, re-scoring against what has already arrived.
 
-    ``gain_fn(modality, context) -> (n,) bits`` must recompute the per-patient
-    gain against the *current* per-patient context.  Re-scoring matters exactly
-    when modalities are redundant: after a chest radiograph shows congestion, the
-    laboratory panel's remaining value collapses for that patient, and a
-    one-shot policy scored against the free baseline would buy both.
+    ``gain_by_context`` maps a sorted tuple of already-acquired modalities to
+    ``{modality: (n,) bits}`` -- the per-patient gain of each remaining test
+    given that context.  The caller precomputes it (see
+    :func:`sequential_gain_table`), because each entry costs a pass of the
+    conditional sampler and only the caller knows the compute budget.
+
+    Re-scoring matters exactly when modalities are redundant.  A one-shot policy
+    scores every test against the free baseline, so for a patient whose chest
+    radiograph and laboratory panel would say the same thing it buys both: each
+    looks valuable on its own. After the radiograph shows congestion, the panel's
+    remaining value for *that patient* collapses, and only a policy that looks
+    again can see it.
     """
     n = len(cf.y)
     chosen = {m: np.zeros(n, bool) for m in orderable}
@@ -356,26 +364,70 @@ def greedy_sequential(cf, cohort, gain_fn, cost_model: CostModel,
     active = np.ones(n, bool)
 
     for step in range(max_tests):
-        best_gain = np.zeros(n)
+        best_score = np.full(n, -np.inf)
         best_mod = np.full(n, -1)
-        ctx_key = {m: None for m in orderable}
-        for j, m in enumerate(orderable):
-            ctx = tuple(sorted(o for o in orderable if chosen[o].any()))
-            d = gain_fn(m, ctx)
-            score = d / max(cost_model.cost(m), 1e-9)
-            upd = active & ~chosen[m] & (score > best_gain) & (score > lambda_bits_per_dollar)
-            best_gain = np.where(upd, score, best_gain)
-            best_mod = np.where(upd, j, best_mod)
-            ctx_key[m] = ctx
-        take_any = best_mod >= 0
-        if not take_any.any():
+        # group patients by the context they have reached, so each patient is
+        # scored against their own acquired set rather than a cohort-level one
+        codes = np.zeros(n, dtype=np.int64)
+        for b, m in enumerate(sorted(orderable)):
+            codes |= (chosen[m].astype(np.int64) << b)
+        for code in np.unique(codes[active]):
+            sel = active & (codes == code)
+            ctx = tuple(sorted(m for b, m in enumerate(sorted(orderable))
+                               if (code >> b) & 1))
+            gains = gain_by_context.get(ctx)
+            if gains is None:
+                log.warning("no precomputed gains for context %s; skipping", ctx or "()")
+                continue
+            for j, m in enumerate(orderable):
+                if m not in gains or chosen[m][sel].all():
+                    continue
+                score = gains[m] / max(cost_model.cost(m), 1e-9)
+                upd = sel & ~chosen[m] & (score > best_score) & (score > lambda_bits_per_dollar)
+                best_score = np.where(upd, score, best_score)
+                best_mod = np.where(upd, j, best_mod)
+
+        take = best_mod >= 0
+        if not take.any():
             break
         for j, m in enumerate(orderable):
-            sel = take_any & (best_mod == j)
-            chosen[m] |= sel
-            cost += sel * cost_model.cost(m)
-        active &= take_any
-        log.info("greedy step %d: ordered for %d patients", step + 1, int(take_any.sum()))
+            pick = take & (best_mod == j)
+            chosen[m] |= pick
+            cost += pick * cost_model.cost(m)
+        active &= take
+        log.info("greedy step %d: ordered for %d patients", step + 1, int(take.sum()))
 
     return PolicyResult(f"greedy(max={max_tests})", chosen,
                         probs_under_policy(cf, cf.baseline, chosen), cost)
+
+
+def sequential_gain_table(cf, cohort, orderable: Sequence[str], gain_cfg,
+                          max_tests: int = 2) -> dict[tuple[str, ...], dict[str, np.ndarray]]:
+    r"""Precompute per-patient gains for every context a greedy policy can reach.
+
+    With :math:`k` orderable modalities and two steps that is
+    :math:`k + k(k-1)` conditional-sampler passes, which is why the sequential
+    policy is opt-in: it costs roughly :math:`k` times a one-shot run.
+    """
+    from itertools import combinations
+
+    from infogain.vinfo.conditional import patient_expected_gain
+
+    base = cf.baseline
+    out: dict[tuple[str, ...], dict[str, np.ndarray]] = {}
+    for r in range(max_tests):
+        for acquired in combinations(sorted(orderable), r):
+            ctx = base | frozenset(acquired)
+            gains = {}
+            for m in orderable:
+                if m in acquired:
+                    continue
+                if not cf.has(ctx | {m}):
+                    continue
+                gains[m] = patient_expected_gain(cf, cohort, m, context=ctx,
+                                                 cfg=gain_cfg).delta_bits
+            if gains:
+                out[tuple(sorted(acquired))] = gains
+            log.info("sequential gains for context %s: %d modalities",
+                     acquired or "()", len(gains))
+    return out

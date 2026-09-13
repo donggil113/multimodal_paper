@@ -37,7 +37,9 @@ from infogain.clinical.net_benefit import (
     restricted_information,
     safe_omission_bound_local,
 )
-from infogain.clinical.policy import reduction_study
+from infogain.clinical.policy import (
+    evaluate_policy, greedy_sequential, reduction_study, sequential_gain_table,
+)
 from infogain.data.schema import Cohort
 from infogain.encoders.fusion import FamilyConfig
 from infogain.encoders.train import TrainConfig, fit_family
@@ -72,6 +74,11 @@ class AnalysisConfig:
     cost_weights: CostWeights = field(default_factory=CostWeights)
     seed: int = 0
     make_figures: bool = True
+    #: also run the re-scoring (greedy) policy. Off by default: it costs roughly
+    #: k times a one-shot run, because every reachable context needs its own
+    #: conditional-sampler pass.
+    sequential: bool = False
+    sequential_max_tests: int = 2
 
     def describe(self) -> dict:
         d = {k: v for k, v in self.__dict__.items() if k not in ("train", "gain", "cost_weights")}
@@ -224,6 +231,20 @@ def analyse(cohort: Cohort, cfg: AnalysisConfig, out_dir: Path) -> dict:
                             thresholds=cfg.decision_thresholds, seed=cfg.seed)
     study.frontier.to_csv(out_dir / "tables" / "policy_frontier.csv", index=False)
     study.comparators.to_csv(out_dir / "tables" / "policy_comparators.csv", index=False)
+
+    if cfg.sequential:
+        log.info("  sequential (re-scoring) policy")
+        table = sequential_gain_table(cf, cohort, orderable, cfg.gain,
+                                      cfg.sequential_max_tests)
+        seq = greedy_sequential(cf, table, cost_model, orderable,
+                                cfg.sequential_max_tests)
+        seq_ev = evaluate_policy(seq, y, cf.p(full), cfg.decision_thresholds,
+                                 len(orderable))
+        pd.DataFrame([seq_ev.as_row(cfg.decision_thresholds)]).to_csv(
+            out_dir / "tables" / "policy_sequential.csv", index=False)
+        summary["sequential"] = seq_ev.as_row(cfg.decision_thresholds)
+        log.info("  sequential: %.2f tests/patient, AUROC %.4f",
+                 seq_ev.tests_per_patient, seq_ev.auroc)
     summary["reduction"] = study.equal_performance
     summary["reduction_summary_text"] = study.summary()
     log.info(study.summary())
@@ -295,13 +316,16 @@ def main() -> None:  # pragma: no cover - CLI
     ap.add_argument("--cost-mode", default="money",
                     choices=["money", "throughput", "harm"])
     ap.add_argument("--quick", action="store_true")
+    ap.add_argument("--sequential", action="store_true",
+                    help="also run the re-scoring policy (costs ~k x a one-shot run)")
     ap.add_argument("--no-figures", action="store_true")
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
     cohort = Cohort.load(args.cohort)
     cfg = AnalysisConfig(outcome=args.outcome, seed=args.seed,
-                         make_figures=not args.no_figures)
+                         make_figures=not args.no_figures,
+                         sequential=args.sequential)
     if args.quick:
         cfg = _quick(cfg)
     if args.epochs:
