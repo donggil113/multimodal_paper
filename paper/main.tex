@@ -171,8 +171,9 @@ in the abstract. We define it \emph{relative to a context} $S$ of tests already
 performed: the redundant part of a modality's value is the part its marginal
 value loses once $S$ is conditioned on, and the synergistic part is the part
 that only appears then. Both are differences of estimable quantities, both are
-non-negative, exactly one is non-zero, and together they reconstruct the
-conditional value exactly. Nothing is left to axiom choice. Shapley averaging
+non-negative, at most one is non-zero (they coincide at zero exactly when the
+context changes nothing), and together they reconstruct the conditional value
+exactly. Nothing is left to axiom choice. Shapley averaging
 over acquisition orders \citep{shapley1953value,lundberg2017shap} removes the
 remaining arbitrariness of which context to condition on.
 
