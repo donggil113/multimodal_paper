@@ -150,3 +150,49 @@ def test_theorem1_bound_does_not_exceed_observed_in_the_run(fitted, tmp_path):
     # minus the context model's AUROC), which can exceed the gain the particular
     # fitted pair happens to show.
     assert (t1["bound"] <= t1["achievable_gain"] + 1e-6).all()
+
+
+def test_sequential_policy_rescoring_uses_per_patient_contexts(fitted):
+    """Each patient must be scored against the set *they* have reached."""
+    from infogain.clinical.cost import CostModel, CostWeights
+    from infogain.clinical.policy import greedy_sequential
+
+    cohort, _, cf = fitted
+    orderable = cohort.spec.orderable
+    n = len(cf.y)
+    rng = np.random.default_rng(0)
+
+    # context () prefers the first modality; after acquiring it, the second
+    # becomes the best remaining one -- so a correct implementation reaches a
+    # two-test panel, and one that ignores context does not.
+    first, second = orderable[0], orderable[1]
+    table = {
+        (): {m: (np.full(n, 0.05) if m == first else np.full(n, 0.01))
+             for m in orderable},
+        (first,): {m: (np.full(n, 0.05) if m == second else np.full(n, 0.001))
+                   for m in orderable if m != first},
+    }
+    for m in orderable:
+        if m != first:
+            table[(m,)] = {o: np.full(n, 0.0005) for o in orderable if o != m}
+
+    cm = CostModel(cohort.spec, CostWeights.money_only())
+    res = greedy_sequential(cf, table, cm, orderable, max_tests=2)
+    assert res.chosen[first].all()
+    assert res.chosen[second].all()
+    assert not res.chosen[orderable[2]].any()
+    assert res.n_tests.mean() == pytest.approx(2.0)
+
+
+def test_sequential_policy_stops_below_the_threshold(fitted):
+    from infogain.clinical.cost import CostModel, CostWeights
+    from infogain.clinical.policy import greedy_sequential
+
+    cohort, _, cf = fitted
+    orderable = cohort.spec.orderable
+    n = len(cf.y)
+    table = {(): {m: np.full(n, 1e-9) for m in orderable}}
+    cm = CostModel(cohort.spec, CostWeights.money_only())
+    res = greedy_sequential(cf, table, cm, orderable, max_tests=2,
+                            lambda_bits_per_dollar=1e-3)
+    assert res.n_tests.sum() == 0

@@ -256,22 +256,33 @@ def fit_family(cohort, outcome: str, cfg: TrainConfig | None = None,
              outcome, n, 100 * y.mean(), len(subsets), cfg.n_folds, len(cfg.seeds))
 
     dims = {m: cohort.blocks[m].dim for m in names}
-    # Concentrate the focus branch on the subsets the decomposition actually
-    # reads -- the full panel, each leave-one-out set, the baseline, and each
-    # baseline-plus-one -- rather than spreading it uniformly over the whole
-    # lattice. Conditional gains are differences between the full panel and a
-    # leave-one-out set, so those two are the fits that have to be good; giving
-    # a specific 5-of-6 mask ~2% of training (what uniform Bernoulli dropout
-    # amounts to) is not enough to learn a cross-modality interaction, which is
-    # where synergistic information lives.
+    # Weight the training-mask distribution by how heavily the decomposition
+    # reads each subset. Conditional gains are differences between the full
+    # panel and a leave-one-out set, so those two carry the most weight; the
+    # intermediate subsets still need enough training for the Shapley values and
+    # the pairwise map to mean anything. Uniform Bernoulli dropout alone gives a
+    # specific 5-of-6 mask about 2% of training, which is not enough to learn a
+    # cross-modality interaction -- and interactions are where synergistic
+    # information lives.
     full = frozenset(names)
-    orderable = [m for m in names if m not in baseline]
-    focus = [full] + [full - {m} for m in orderable]
-    focus += [frozenset(baseline)] + [frozenset(baseline) | {m} for m in orderable]
-    focus = [f for f in focus if f and f in set(subsets)]
-    sampler = MaskSampler(names=names, always_available=frozenset(baseline),
-                          focus_subsets=focus or [s for s in subsets if s],
-                          p_focus=0.40)
+    base_fs = frozenset(baseline)
+    orderable = [m for m in names if m not in base_fs]
+    weight_of = {}
+    for s_ in subsets:
+        if not s_ or s_ == full or s_ == base_fs:
+            continue                              # covered by their own spikes
+        if len(s_) == len(names) - 1 and s_ < full and base_fs <= s_:
+            weight_of[s_] = 3.0                   # leave-one-out
+        elif base_fs <= s_ and len(s_) == len(base_fs) + 1:
+            weight_of[s_] = 2.0                   # baseline plus one test
+        else:
+            weight_of[s_] = 1.0
+    focus = list(weight_of)
+    sampler = MaskSampler(names=names, always_available=base_fs,
+                          focus_subsets=focus or [s_ for s_ in subsets if s_],
+                          focus_weights=[weight_of[f] for f in focus] if focus else [],
+                          p_empty=0.08, p_full=0.20, p_baseline_only=0.10,
+                          p_focus=0.45)
 
     probs = {subset_key(s): np.zeros((len(cfg.seeds), n), dtype=np.float64)
              for s in subsets}

@@ -212,6 +212,13 @@ class MaskSampler:
     keep_rate_range: tuple[float, float] = (0.25, 0.9)
     always_keep_rate: float = 0.85
     focus_subsets: list[frozenset[str]] = field(default_factory=list)
+    #: relative weights within the focus branch, same length as ``focus_subsets``.
+    #: Uniform if empty.  Weighting rather than a flat list matters because the
+    #: subsets are not equally important: conditional gains are differences
+    #: between the full panel and a leave-one-out set, so those need the most
+    #: training, while the intermediate subsets still need enough to keep the
+    #: Shapley values and the pairwise interaction map honest.
+    focus_weights: list[float] = field(default_factory=list)
     p_focus: float = 0.15
 
     def sample(self, batch: int, generator: torch.Generator | None = None
@@ -240,8 +247,13 @@ class MaskSampler:
             base_only[:, base_idx] = 1.0
             mask = torch.where((u >= c2) & (u < c3), base_only, mask)
         if self.focus_subsets:
-            pick = torch.randint(len(self.focus_subsets), (batch,), generator=generator,
-                                 device=dev)
+            if self.focus_weights:
+                w = torch.tensor(self.focus_weights, dtype=torch.float32, device=dev)
+                pick = torch.multinomial(w / w.sum(), batch, replacement=True,
+                                         generator=generator)
+            else:
+                pick = torch.randint(len(self.focus_subsets), (batch,),
+                                     generator=generator, device=dev)
             table = torch.tensor(
                 [[1.0 if m in fs else 0.0 for m in self.names] for fs in self.focus_subsets],
                 device=dev)
