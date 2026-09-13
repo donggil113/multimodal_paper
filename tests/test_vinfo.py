@@ -85,6 +85,28 @@ def test_paired_gain_is_tighter_than_unpaired():
     assert paired.se < unpaired_se / 5
 
 
+def test_paired_gain_still_helps_at_realistic_correlation():
+    """The existing test uses a contrived correlation; this uses the measured one.
+
+    With shared sd 3.0 against idiosyncratic 0.2 the two PVI vectors correlate at
+    0.998 and pairing looks like a factor of 15.  On fitted models the
+    correlation between pvi(S+m) and pvi(S) runs 0.72 (labs) to 0.97 (echo), and
+    the benefit is 1.8x to 5.9x.  Pinning the worst realistic case keeps the
+    docstring's numbers honest: if a change to the estimator erodes the pairing,
+    the contrived test would still pass and this one would not.
+    """
+    rng = np.random.default_rng(11)
+    n, rho = 20000, 0.72
+    z1, z2 = rng.normal(0, 1, n), rng.normal(0, 1, n)
+    a = z1
+    b = rho * z1 + np.sqrt(1 - rho ** 2) * z2
+    ratio = np.sqrt(a.var(ddof=1) + b.var(ddof=1)) / (a - b).std(ddof=1)
+    assert 1.5 < ratio < 2.5, ratio          # algebra: sqrt(2/(2-2rho)) = 1.89
+    paired = paired_gain(a, b)
+    unpaired_se = np.sqrt(a.var(ddof=1) / n + b.var(ddof=1) / n)
+    assert paired.se < unpaired_se / 1.5
+
+
 def test_permutation_pvalue_calibrated_under_the_null():
     rng = np.random.default_rng(3)
     ps = [paired_permutation_pvalue(rng.normal(0, 1, 400), np.zeros(400),

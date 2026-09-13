@@ -281,8 +281,13 @@ def paired_gain(pvi_large: np.ndarray, pvi_small: np.ndarray,
     :math:`\log_2 f_{S\cup m}(y_i|\cdot) - \log_2 f_S(y_i|\cdot)`: the null model
     cancels exactly and the pairing removes the (large) patient-level variance
     that dominates each term separately.  Estimating the gain as a difference of
-    two independently-computed cohort means instead would inflate the standard
-    error by roughly an order of magnitude at realistic cohort sizes.
+    two independently-computed cohort means instead inflates the standard error
+    by a factor of :math:`\sqrt{\mathrm{var}(a)+\mathrm{var}(b)}/\mathrm{sd}(a-b)`,
+    which on the simulator runs from 1.8 (labs, where the two models differ
+    most) to 5.9 (echo, where they barely differ), median 4.1 -- large, but not
+    the order of magnitude an earlier version of this docstring claimed.  The
+    factor is set by the correlation between the two PVI vectors, not by the
+    cohort size.
     """
     diff = np.asarray(pvi_large, dtype=np.float64) - np.asarray(pvi_small, dtype=np.float64)
     out = v_info_from_pvi(diff, alpha=alpha, method=method, clip=clip)
