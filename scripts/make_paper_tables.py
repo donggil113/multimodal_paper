@@ -117,8 +117,9 @@ def main() -> None:
                                 "true_conditional": "true $U$", "est_conditional": "est $U$",
                                 "true_regime": "true regime", "est_regime": "est regime",
                                 "regime_correct": "correct"})
-        write(df, out / "regime_table.tex",
-              align="r" + "l" + "rrrr" + "llc" if "n" in df.columns else "lrrrrllc")
+        align = ("rl" + "r" * 4 + "llc") if "n" in df.columns else ("l" + "r" * 4 + "llc")
+        assert len(align) == len(df.columns), (align, list(df.columns))
+        write(df, out / "regime_table.tex", align=align)
     else:
         write(None, out / "regime_table.tex")
 
