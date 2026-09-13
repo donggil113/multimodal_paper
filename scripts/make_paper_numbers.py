@@ -58,6 +58,11 @@ REQUIRED = [
     "simSynergyFirstN", "simRedundancyFirstN",
     "powBothFrac", "powEventsMin", "powEventsMax", "powSynMin", "powSynMax",
     "powTreeSynMax", "restrictedShareMin", "restrictedShareMax",
+    "powMidAN", "powMidAEvents", "powMidARecovery",
+    "powMidBN", "powMidBEvents", "powMidBRecovery",
+    "acqLabs", "acqEcg", "acqCxr", "acqEcho",
+    "permNPerm", "permFloor", "decEchoNullPMin",
+    "thyWitnessResidual", "certTightenMin", "certTightenMax", "shapleyEffResidual",
     "redAvoidedMin", "redAvoidedMax",
     "redIcuTransferAvoided", "redIcuTransferSaved", "redIcuTransferCert", "aurocIcuTransfer",
     "redAkiAvoided", "redAkiSaved", "redAkiCert", "aurocAki",
@@ -85,7 +90,7 @@ for _m in MODALITIES:
 for _e in ("Mortality", "HfReadmission", "Aki", "IcuTransfer"):
     for _m in MODALITIES:
         REQUIRED += [f"dec{_m}{_e}Marg", f"dec{_m}{_e}Cond",
-                     f"dec{_m}{_e}Red", f"dec{_m}{_e}Syn"]
+                     f"dec{_m}{_e}Red", f"dec{_m}{_e}Syn", f"dec{_m}{_e}P"]
 
 
 class Macros:
@@ -153,6 +158,10 @@ def main() -> None:
         M.add("thyIdentityTrials", ident.get("n_trials"))
         pvi = next((k for k in reps if k.startswith("PVI recovers")), None)
         M.add("thyPviErr", f"{abs(reps[pvi]['worst_slack']):.1e}" if pvi else None)
+        wit = reps.get("Thm1 witness identity (bound == lex gain)", {})
+        if wit.get("worst_slack") is not None:
+            mant, exp = f"{abs(wit['worst_slack']):.0e}".split("e")
+            M.add("thyWitnessResidual", rf"{mant}\times10^{{{int(exp)}}}")
 
     # ---- simulation validation ----------------------------------------- #
     sim = load_json(R / "simulation" / "summary.json")
@@ -190,6 +199,29 @@ def main() -> None:
         M.add("simRedundancyFirstN",
               f"{min(r['first_correct_n'] for r in red):,}".replace(",", "{,}")
               if red else None)
+
+    # the middle pair of the power grid: the comparison that separates overlap
+    # from cohort size, so each of its numbers is generated rather than typed
+    pw = load_csv(R / "simulation" / "tables" / "synergy_power.csv")
+    if pw is not None:
+        syn = pw[pw["true_regime"] == "synergistic"]
+        for tag, (n, comp) in {"A": (18000, True), "B": (50000, False)}.items():
+            g = syn[(syn["n"] == n) & (syn["complete"] == comp)]
+            if g.empty:
+                continue
+            M.add(f"powMid{tag}N", f"{n:,}".replace(",", "{,}"))
+            M.add(f"powMid{tag}Events",
+                  f"{int(g['events_with_both'].iloc[0]):,}".replace(",", "{,}"))
+            M.add(f"powMid{tag}Recovery",
+                  _pct((g["est_conditional"] / g["true_conditional"]).mean(), 0))
+
+    # ---- realised acquisition rates (the driver of overlap) ------------- #
+    od = load_csv(R / args.cohort_name / args.primary / "tables"
+                  / "overlap_diagnostics.csv")
+    if od is not None:
+        for mod in od["modality"]:
+            row = od[od["modality"] == mod].iloc[0]
+            M.add(f"acq{mod.capitalize()}", _pct(row["order_rate"], 0))
 
     # ---- primary endpoint ------------------------------------------------ #
     base = R / args.cohort_name / args.primary
@@ -290,6 +322,16 @@ def main() -> None:
                     M.add(f"dec{mk}{key}Cond", _fmt(r["conditional_bits"], 4))
                     M.add(f"dec{mk}{key}Red", _fmt(r["redundant_bits"], 4))
                     M.add(f"dec{mk}{key}Syn", _fmt(r["synergistic_bits"], 4))
+                    M.add(f"dec{mk}{key}P", _fmt(r["p_conditional"], 4))
+        n_perm = 5000  # infogain.vinfo.decomposition.decompose_modality default
+        M.add("permNPerm", f"{n_perm:,}".replace(",", "{,}"))
+        M.add("permFloor", _fmt(1.0 / (n_perm + 1), 4))
+        nulls = [dec.loc[m, "p_conditional"]
+                 for name, (_, dec) in per_ep.items()
+                 for m in ("echo",)
+                 if m in dec.index and name != "hf_readmission_30d"]
+        if nulls:
+            M.add("decEchoNullPMin", _fmt(min(nulls), 3))
         if shares:
             M.add("restrictedShareMin", f"{100 * min(shares):.0f}")
             M.add("restrictedShareMax", f"{100 * max(shares):.0f}")
@@ -300,6 +342,28 @@ def main() -> None:
             M.add("redAvoidedMin", f"{100 * min(avoided):.0f}")
             M.add("redAvoidedMax", f"{100 * max(avoided):.0f}")
 
+
+    # ---- Theorem 2: how much the localised certificate buys ------------- #
+    from infogain.clinical.net_benefit import safe_omission_bound_global
+    ratios, effres = [], []
+    for oc_dir in sorted((R / args.cohort_name).glob("*")):
+        t2 = load_csv(oc_dir / "tables" / "theorem2_bounds.csv")
+        if t2 is not None:
+            lo = t2[t2["threshold"] <= 0.05]
+            for eps, t, cert in zip(lo["forgone_bits"], lo["threshold"],
+                                    lo["certified_nb_loss"]):
+                if cert > 0:
+                    ratios.append(float(safe_omission_bound_global(eps, t)) / cert)
+        sj = load_json(oc_dir / "summary.json")
+        if sj is not None and sj.get("shapley_efficiency_residual") is not None:
+            effres.append(abs(sj["shapley_efficiency_residual"]))
+    if ratios:
+        M.add("certTightenMin", _fmt(min(ratios), 1))
+        M.add("certTightenMax", _fmt(max(ratios), 1))
+    if effres:
+        # a bound, not the value: the residual is exactly zero on most endpoints
+        import math
+        M.add("shapleyEffResidual", f"10^{{{math.ceil(math.log10(max(max(effres), 1e-300))):d}}}")
 
     rows = []
     for oc_dir in sorted((R / args.cohort_name).glob("*")):

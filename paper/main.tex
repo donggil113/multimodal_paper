@@ -247,7 +247,7 @@ first, we also report the Shapley value $\varphi_m$ of each modality over all
 acquisition orders. Efficiency guarantees $\sum_m \varphi_m$ equals the total
 usable information of the full panel, so no modality can be credited with bits
 the panel does not contain; in our runs the efficiency residual is numerically
-zero ($<10^{-15}\bits$).
+zero ($<\shapleyEffResidual\bits$).
 
 \subsection{Information is exactly integrated net benefit}
 \label{sec:res-identity}
@@ -326,7 +326,7 @@ lower bound merely widens the (unused) upper end of the bracket.
 The theorem's own content is an \emph{identity}: the certified sum equals the
 AUROC gain of an explicit witness score, the lexicographic
 ``$\eta_S$-bin, ties broken by $\eta_{S\cup m}$''. We verify that identity
-rather than the inequality it implies, and it holds to $5\times10^{-17}$. All
+rather than the inequality it implies, and it holds to $\thyWitnessResidual$. All
 four lemma inequalities hold with zero violations over $\thyTrialsJS$
 Monte-Carlo trials each (Supplementary Table~S1), and on exact simulator
 posteriors the bound never exceeded the achievable gain (\simThmOneHolds).
@@ -339,8 +339,9 @@ If omitting modality $m$ forgoes at most $\varepsilon$ nats of information, then
 at every risk threshold $t$ the net-benefit loss obeys
 $\Delta\NB(t) \le \sqrt{\varepsilon/2}\,/\,(1-t)$. Integrating the true
 threshold weight rather than its lower bound gives a strictly tighter,
-threshold-specific certificate (Supplementary~\S4), typically 2--3$\times$
-smaller at the low thresholds used in triage.
+threshold-specific certificate (Supplementary~\S4), which on our runs is
+\certTightenMin--\certTightenMax$\times$ smaller at the thresholds used in
+triage ($t \le 0.05$).
 \end{theorem}
 
 The practical content is a guarantee in the direction that matters. A test whose
@@ -386,7 +387,8 @@ Second, \textbf{the synergistic term is the last part of the decomposition to
 become estimable, and what governs it is not the cohort size but the number of
 events for which \emph{both} modalities were acquired}. An interaction can only
 be learned from patients who had both tests. With the acquisition rates in our
-design -- 67\% for the electrocardiogram, 57\% for the radiograph -- that overlap
+design -- \acqEcg\% for the electrocardiogram, \acqCxr\% for the radiograph --
+that overlap
 is \powBothFrac\% of the cohort, and the event count inside it correspondingly
 smaller.
 
@@ -394,9 +396,10 @@ Crossing cohort size with an all-acquired variant separates the two
 explanations, and it is the overlap that tracks (Supplementary Table~S7).
 Recovery of the synergistic terms rises from \powSynMin\% at \powEventsMin\
 overlapping events to \powSynMax\% at \powEventsMax. The decisive comparison is
-the middle pair: a cohort of 18\,000 with complete acquisition (1\,391
-overlapping events, 41\% recovered) and one of 50\,000 with realistic acquisition
-(1\,673 events, 59\% recovered) behave alike despite differing almost threefold
+the middle pair: a cohort of \powMidAN\ with complete acquisition
+(\powMidAEvents\ overlapping events, \powMidARecovery\% recovered) and one of
+\powMidBN\ with realistic acquisition (\powMidBEvents\ events,
+\powMidBRecovery\% recovered) behave alike despite differing almost threefold
 in $n$. What the estimator sees is the overlap.
 
 Two things follow. For anyone designing a multimodal study, the quantity to
@@ -405,7 +408,8 @@ given interaction needs roughly two and a half times the patients the same
 interaction would need if every test were universal, and no headline cohort size
 reveals that. For anyone reading one, an estimate of zero synergy from a
 modestly-sized cohort is weak evidence of absence -- in our own runs the
-synergistic regimes are called correctly at $n=50\,000$ and not at $n=18\,000$
+synergistic regimes are called correctly at $n=\simRegimeMaxN$ and not at
+$n=\powMidAN$
 (Supplementary Table~S4). The error is at least in the safe direction: it
 understates a test's value, so it cannot manufacture a reduction that is not
 there. The learning-curve extrapolation, which lifts median recovery from
@@ -443,7 +447,9 @@ property of the modalities:
 \item For \textbf{30-day mortality} the electrocardiogram is worth nothing on
   its own (\decEcgMarginal\ bits, indistinguishable from zero) yet contributes
   \decEcgConditional\ bits once every other test is in hand -- \decEcgSynergistic\
-  bits of pure synergy, $p=0.0002$. A single-modality study would have discarded
+  bits of pure synergy ($p \le \permFloor$, the smallest value a
+  \permNPerm-draw sign-flip permutation test can return). A single-modality
+  study would have discarded
   it. The laboratory panel is the reverse: the largest marginal value
   (\decLabsMarginal\ bits) but \decLabsRedFrac\% of it already present in the
   rest of the panel.
@@ -451,10 +457,12 @@ property of the modalities:
   radiograph is largely redundant for acute kidney injury -- \decCxrAkiMarg\
   bits alone, only \decCxrAkiCond\ once the laboratory panel is in hand -- and
   synergistic for mortality (\decCxrMortalitySyn\ bits). The echocardiogram is
-  indistinguishable from useless for mortality, AKI and ICU transfer ($p>0.87$ in
-  each) and carries \decEchoHfReadmissionCond\ bits for heart-failure
-  readmission, of which \decEchoHfReadmissionSyn\ are synergistic with the
-  electrocardiogram.
+  indistinguishable from useless for mortality, AKI and ICU transfer
+  ($p \ge \decEchoNullPMin$ in each) and carries \decEchoHfReadmissionCond\ bits for heart-failure
+  readmission, more than it carries alone (\decEchoHfReadmissionMarg), so that
+  \decEchoHfReadmissionSyn\ bits of it appear only in the presence of the other
+  tests. Which test it needs we cannot say: no pairwise interaction involving the
+  echocardiogram is separated from zero at this cohort size.
 \item Consequently \textbf{how much testing can be avoided is a property of the
   question, not of the hospital}: at matched discrimination the reduction runs
   from \redHfReadmissionAvoided\% for heart-failure readmission, where almost
