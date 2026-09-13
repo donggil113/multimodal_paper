@@ -263,7 +263,7 @@ If $\eta_1 = \mathbb{E}[\eta_2\mid X_S]$, then in nats
 \]
 \end{theorem}
 
-The proof (Supplementary~S3) applies Schervish's representation of the negative
+The proof (Supplementary~\S3) applies Schervish's representation of the negative
 Shannon entropy as a mixture of threshold losses, then uses the nesting condition
 to kill the linear term. Numerically the identity holds to a relative error of
 \thyIdentityRelErr\ over \thyIdentityTrials\ random nested posterior pairs, and
@@ -299,16 +299,27 @@ within-bin AUROC. Within each bin the second term is bounded below by
 $U_k / \big(2H(\pi_k)\big)$, the within-bin conditional usable information.
 \end{theorem}
 
-The proof is a ranking argument (Supplementary~S1): the lexicographic score
+The proof is a ranking argument (Supplementary~\S2): the lexicographic score
 ``bin index, ties broken by $\eta_{S\cup m}$'' is $X_{S\cup m}$-measurable and
 agrees with $\eta_S$ on every across-bin pair, so it can only differ within bins.
 The information step uses two lemmas we state and verify separately -- a
 Kolmogorov--Smirnov sandwich $D^+ \le 2A-1 \le 2D^+$ (the lower bound for
 concave ROCs, hence for the ROC convex hull \citep{provost2001robust}) and a
-Jensen--Shannon bound $2\pi(1-\pi)\TV^2 \le I \le H(\pi)\TV$
-\citep{lin1991divergence}. All four inequalities hold with zero violations over
-$\thyTrialsJS$ Monte-Carlo trials each (Supplementary Table~S1), and the bound
-never exceeded the achievable gain in any simulation (\simThmOneHolds).
+Jensen--Shannon bound $8\pi^2(1-\pi)^2\TV^2 \le I \le H(\pi)\TV$
+\citep{lin1991divergence}. Both directions of the latter have short proofs
+(Supplementary~\S2) resting on $\mathbb{E}[\eta]=\pi$: the upper bound from the
+two chords of the concave binary entropy, the lower from Pinsker plus Jensen. A
+sharper lower constant held in every numerical check but has no proof, so we do
+not use it; only the upper bound enters Theorem~\ref{thm:auroc}, and a looser
+lower bound merely widens the (unused) upper end of the bracket.
+
+The theorem's own content is an \emph{identity}: the certified sum equals the
+AUROC gain of an explicit witness score, the lexicographic
+``$\eta_S$-bin, ties broken by $\eta_{S\cup m}$''. We verify that identity
+rather than the inequality it implies, and it holds to $5\times10^{-17}$. All
+four lemma inequalities hold with zero violations over $\thyTrialsJS$
+Monte-Carlo trials each (Supplementary Table~S1), and on exact simulator
+posteriors the bound never exceeded the achievable gain (\simThmOneHolds).
 
 The converse direction is what licenses omitting a test.
 
@@ -318,7 +329,7 @@ If omitting modality $m$ forgoes at most $\varepsilon$ nats of information, then
 at every risk threshold $t$ the net-benefit loss obeys
 $\Delta\NB(t) \le \sqrt{\varepsilon/2}\,/\,(1-t)$. Integrating the true
 threshold weight rather than its lower bound gives a strictly tighter,
-threshold-specific certificate (Supplementary~S2), typically 2--3$\times$
+threshold-specific certificate (Supplementary~\S4), typically 2--3$\times$
 smaller at the low thresholds used in triage.
 \end{theorem}
 
@@ -457,7 +468,7 @@ counterfactual is an extrapolation, not an estimate.
 
 For missingness \emph{not} at random we repeated the entire analysis on a cohort
 in which ordering depends on the latent factors the ordering clinician can see
-but the model cannot (Supplementary~S6). The direction of the bias is
+but the model cannot (Supplementary~\S7). The direction of the bias is
 informative: unmeasured indication inflates the apparent value of the tests that
 were selectively ordered, and therefore makes the reduction claim conservative
 rather than optimistic -- a policy trained under MNAR orders \emph{more} tests
@@ -490,14 +501,14 @@ the reduction could cost, a statement that survives the sample.
 \paragraph{Limitations.} $\Vc$-information is relative to the predictor family
 and the sample size; a stronger encoder or a larger cohort raises it, and
 reporting the family is part of reporting the number. We give the learning-curve
-extrapolation and the two-sided finite-sample bracket (Theorem~S7) so that
+extrapolation and the two-sided finite-sample bracket (Supplementary~\S6) so that
 readers can see how much of the gap is estimation and how much is genuine
 absence of signal, but the estimate remains a lower bound. Our headline
 modality representations are deliberately interpretable -- electrocardiogram
 interval measurements and CheXpert labels rather than raw waveforms and pixels --
 which makes the decomposition auditable by a clinician at the cost of some
 usable information; the raw-signal path is implemented and its comparison is
-reported in Supplementary~S8. MIMIC-IV is a single academic centre in one
+reported in Supplementary~\S8. MIMIC-IV is a single academic centre in one
 country, its test-ordering culture is its own, and the cost figures are US list
 prices; the frontier is therefore reported in full so that a reader with a
 different fee schedule can read off their own operating point. Finally, a
@@ -567,7 +578,7 @@ negative, uncertain, not mentioned -- averaging these would be meaningless) plus
 view position. Notes: TF-IDF over 1--2 grams reduced by truncated SVD to 64
 components, with vocabulary and projection fitted on training folds only.
 Raw-waveform and raw-image encoders (1-D and 2-D residual networks) are
-implemented for the comparison in Supplementary~S8.
+implemented for the comparison in Supplementary~\S8.
 
 \subsection{The predictive family}
 \label{sec:family}

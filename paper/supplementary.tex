@@ -632,6 +632,42 @@ without using labels, the second using realised results and labels. Their
 agreement (Table~S4) is a joint test of the conditional sampler, the masked
 family and the cross-fitting, and is reported for every modality.
 
+
+% ===================================================================== %
+\section{Raw-signal representations}
+\label{sec:raw}
+
+The headline analysis represents the electrocardiogram by its interval and axis
+measurements plus report keyword flags, and the chest radiograph by its CheXpert
+label vector. Both are deliberate choices, and both cost usable information.
+
+The case for them is auditability and access. A cardiologist can read a row of
+the ECG block and say whether the decomposition is plausible; nobody can do that
+with the 48th coordinate of a learned embedding. And the tabular path needs
+about 1\,GB of metadata rather than the roughly 660\,GB of waveforms and pixels,
+which is the difference between a study another group can reproduce and one they
+cannot.
+
+The case against them is that they discard information the raw signal contains.
+Because $\IV$ is defined relative to the predictor family, substituting a
+stronger encoder \emph{raises} it --- that is the intended semantics, not a
+confound, and it is why the family must be reported alongside the number.
+\texttt{infogain.encoders.waveform} implements a 1-D residual encoder over
+10\,s $\times$ 12 leads at 100\,Hz, and \texttt{infogain.encoders.image} a
+compact 2-D residual encoder over $224^2$ radiographs; both emit an embedding of
+the same width as the tabular blocks and are masked identically, so the family
+stays closed under masking and every theorem applies unchanged.
+\texttt{embeddings\_from\_npz} additionally accepts externally computed
+per-study embeddings, which is the hook for a pretrained thoracic model.
+
+The comparison --- how many of the bits the tabular representation forgoes ---
+requires the full waveform and image downloads and is reported once the
+credentialed extraction has been run. We expect the direction to be unambiguous
+(more information) and the decomposition's \emph{qualitative} structure to be
+stable, since redundancy between the laboratory panel and the radiograph is a
+statement about shared pathophysiology rather than about encoder capacity; but
+that expectation is a hypothesis this analysis will test, not a result.
+
 % ===================================================================== %
 \section{Supplementary tables}
 
