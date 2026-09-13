@@ -55,6 +55,18 @@ class FamilyConfig:
     fusion: str = "attention"
     n_attn_layers: int = 2
     n_heads: int = 4
+    #: Add an explicit second-order term over the modality tokens,
+    #: :math:`\sum_{m<m'} e_m \odot e_{m'}`, computed by the factorization-machine
+    #: identity :math:`\tfrac12[(\sum_m e_m)^2 - \sum_m e_m^2]`.
+    #:
+    #: This is not a tuning knob.  Synergistic information *is* an interaction
+    #: between modalities, so a family with no multiplicative path between two
+    #: tokens cannot represent it, and reporting "no synergy" from such a family
+    #: would be a statement about the architecture rather than about the data.
+    #: Attention can in principle compose one, but it has to learn to, from the
+    #: few events an interaction term contributes to the loss; the explicit path
+    #: costs d extra head inputs and removes the excuse.
+    use_fm: bool = True
 
 
 class ModalityEncoder(nn.Module):
@@ -90,6 +102,7 @@ class MaskedFusionFamily(nn.Module):
             m: nn.Parameter(torch.zeros(self.cfg.emb_dim)) for m in dims})
 
         M = len(dims)
+        fm_dim = self.cfg.emb_dim if self.cfg.use_fm else 0
         if self.cfg.fusion == "attention":
             self.type_emb = nn.Parameter(torch.randn(M, self.cfg.emb_dim) * 0.02)
             self.present_emb = nn.Parameter(torch.randn(2, self.cfg.emb_dim) * 0.02)
@@ -101,10 +114,10 @@ class MaskedFusionFamily(nn.Module):
             # rather than give up pre-norm stability on a 6-token sequence.
             self.attn = nn.TransformerEncoder(layer, num_layers=self.cfg.n_attn_layers,
                                               enable_nested_tensor=False)
-            in_dim = self.cfg.emb_dim * 2 + (M if self.cfg.use_presence_flags else 0)
+            in_dim = self.cfg.emb_dim * 2 + fm_dim + (M if self.cfg.use_presence_flags else 0)
         else:
             self.attn = None
-            in_dim = self.cfg.emb_dim * M + (M if self.cfg.use_presence_flags else 0)
+            in_dim = self.cfg.emb_dim * M + fm_dim + (M if self.cfg.use_presence_flags else 0)
         layers: list[nn.Module] = []
         h = in_dim
         for _ in range(self.cfg.n_head_layers):
@@ -128,10 +141,10 @@ class MaskedFusionFamily(nn.Module):
             p = present[:, j:j + 1]
             embs.append(p * e + (1.0 - p) * self.absent[m].unsqueeze(0))
 
+        raw = torch.stack(embs, dim=1)                           # (B, M, d)
         if self.attn is not None:
-            tok = torch.stack(embs, dim=1)                       # (B, M, d)
             pres_idx = present.long().clamp(0, 1)                # (B, M)
-            tok = tok + self.type_emb.unsqueeze(0) + self.present_emb[pres_idx]
+            tok = raw + self.type_emb.unsqueeze(0) + self.present_emb[pres_idx]
             tok = self.attn(tok)
             # pool over present tokens only, but keep a global mean so the
             # empty-mask member still receives a well-defined input
@@ -140,6 +153,11 @@ class MaskedFusionFamily(nn.Module):
             h = torch.cat([pooled, tok.mean(dim=1)], dim=-1)
         else:
             h = torch.cat(embs, dim=-1)
+        if self.cfg.use_fm:
+            # sum over unordered pairs of the elementwise product, in O(Md)
+            s1 = raw.sum(dim=1)
+            s2 = (raw * raw).sum(dim=1)
+            h = torch.cat([h, 0.5 * (s1 * s1 - s2)], dim=-1)
         if self.cfg.use_presence_flags:
             h = torch.cat([h, present], dim=-1)
         out = self.head(h)

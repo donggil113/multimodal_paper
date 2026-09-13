@@ -198,10 +198,16 @@ def theorem_study_exact(n: int = 60000, outcome: str = "mortality_30d",
         ctx = full - {m}
         p_ctx = gt.posterior(outcome, ctx, respect_observation=False)
         b = best_stratified_bound(y, p_ctx, p_full)
+        # Compare the bound against the achievable gain measured on the *same*
+        # rows. With the honest split the bound lives on the evaluation half, and
+        # comparing it to a full-cohort gain reports half-sample noise as a
+        # theorem violation -- which it did, for one modality, by 0.001 AUROC.
         thm1.append({"modality": m, "bound": b.bound,
-                     "achievable_gain": auroc_hull(y, p_full) - auroc(y, p_ctx),
-                     "observed_gain": b.observed_gain,
-                     "holds": bool(b.bound <= auroc_hull(y, p_full) - auroc(y, p_ctx) + 1e-9)})
+                     "achievable_gain": b.achievable_gain,
+                     "lexicographic_gain": b.lexicographic_gain,
+                     "identity_residual": b.identity_residual,
+                     "observed_gain": b.observed_gain, "n_eval": b.n_eval,
+                     "holds": bool(b.bound <= b.achievable_gain + 1e-9)})
         forgone = information_gain_nats(p_full, p_ctx) / LN2
         for t in (0.02, 0.05, 0.10, 0.20):
             tt = np.array([t])

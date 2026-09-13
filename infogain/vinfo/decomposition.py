@@ -122,14 +122,20 @@ def decompose_modality(cf, modality: str, context: Iterable[str] | None = None,
 def decomposition_table(cf, context: Iterable[str] | None = None,
                         baseline: Iterable[str] | None = None,
                         rows: np.ndarray | None = None,
-                        alpha: float = 0.05) -> pd.DataFrame:
-    """Decomposition for every orderable modality, leave-one-out by default."""
+                        alpha: float = 0.05, n_perm: int = 5000) -> pd.DataFrame:
+    """Decomposition for every orderable modality, leave-one-out by default.
+
+    ``n_perm`` is exposed so a diagnostic sweep can skip the permutation test,
+    which is the most expensive part of this function and answers a question
+    ("is the gain distinguishable from zero") that a sweep comparing estimators
+    does not ask.
+    """
     base = frozenset(baseline) if baseline is not None else cf.baseline
     orderable = [m for m in cf.names if m not in base]
     out = []
     for m in orderable:
         ctx = (frozenset(cf.names) - {m}) if context is None else frozenset(context) - {m}
-        out.append(decompose_modality(cf, m, ctx, base, rows, alpha).as_dict())
+        out.append(decompose_modality(cf, m, ctx, base, rows, alpha, n_perm).as_dict())
     return pd.DataFrame(out)
 
 
