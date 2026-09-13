@@ -1,0 +1,45 @@
+# Data (never commit PHI or PhysioNet-derived data)
+data/
+!data/.gitkeep
+*.csv.gz
+*.parquet
+*.npz
+*.npy
+*.dat
+*.hea
+*.dcm
+*.jpg
+*.png
+!paper/figures/*.png
+!docs/img/*.png
+
+# Results & caches
+results/**/*.pt
+results/**/cache/
+.cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# LaTeX
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.log
+paper/*.out
+paper/*.toc
+paper/*.synctex.gz
+paper/*.fls
+paper/*.fdb_latexmk
+
+# Env
+.venv/
+venv/
+.env
+
+# Generated results (regenerate with scripts/run_all.py)
+results/*/
+!results/theory/
+paper/*.pdf

@@ -1,0 +1,75 @@
+{
+  "all_hold": true,
+  "reports": [
+    {
+      "name": "I <= H(pi) * TV",
+      "n_trials": 20000,
+      "worst_slack": 5.052869793630095e-14,
+      "violated": 0,
+      "holds": true
+    },
+    {
+      "name": "I >= 2 pi (1-pi) TV^2",
+      "n_trials": 20000,
+      "worst_slack": 3.25346660309029e-14,
+      "violated": 0,
+      "holds": true
+    },
+    {
+      "name": "2A_hull-1 >= D+",
+      "n_trials": 2000,
+      "worst_slack": -2.0816681711721685e-17,
+      "violated": 0,
+      "holds": true
+    },
+    {
+      "name": "2A-1 <= 2 D+",
+      "n_trials": 2000,
+      "worst_slack": 0.010197519963144996,
+      "violated": 0,
+      "holds": true
+    },
+    {
+      "name": "Thm3 identity: dI = int dNB dt/t",
+      "n_trials": 150,
+      "worst_slack": -1.006318304696906e-05,
+      "violated": 0,
+      "holds": true
+    },
+    {
+      "name": "Thm2 global bound dominates dNB",
+      "n_trials": 300,
+      "worst_slack": 0.009855663826609282,
+      "violated": 0,
+      "holds": true
+    },
+    {
+      "name": "Thm2 local bound dominates dNB",
+      "n_trials": 300,
+      "worst_slack": 0.00415215842804455,
+      "violated": 0,
+      "holds": true
+    },
+    {
+      "name": "Thm1 bound <= achievable gain",
+      "n_trials": 200,
+      "worst_slack": 0.0013573142689912165,
+      "violated": 0,
+      "holds": true
+    },
+    {
+      "name": "Thm1 bound informative (>0.005 AUROC)",
+      "n_trials": 200,
+      "worst_slack": 0.915,
+      "violated": 0,
+      "holds": true
+    },
+    {
+      "name": "PVI recovers I(X;Y) (truth=0.17312, est=0.17146)",
+      "n_trials": 400000,
+      "worst_slack": -0.0016591988039547922,
+      "violated": 0,
+      "holds": true
+    }
+  ]
+}

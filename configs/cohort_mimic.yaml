@@ -1,0 +1,36 @@
+# MIMIC-IV cohort definition for the INFOGAIN analysis.
+# Consumed by `python -m infogain.data.mimic_cohort`; every field maps to a
+# CohortConfig attribute so the extraction is reproducible from this file alone.
+
+index_anchor: ed_or_admit   # prediction is made at ED registration, else admission
+min_age: 18
+max_age: 110
+first_admission_only: false
+require_hf: false           # set true for the heart-failure readmission cohort
+min_los_hours: 0
+
+endpoints:
+  - mortality_30d
+  - hf_readmission_30d
+  - aki_7d
+  - icu_transfer_48h
+
+# Temporal gating. Nothing acquired after the index time may enter the features.
+# `allow_discharge_summary` must stay false for any endpoint anchored at
+# admission: a discharge summary written days later is the single largest
+# leakage source in multimodal MIMIC work.
+policy:
+  lookback_hours: 24
+  lookahead_hours: 0
+  lab_lookback_hours: 24
+  ecg_lookback_hours: 24
+  cxr_lookback_hours: 24
+  note_lookback_hours: 24
+  med_lookback_hours: 168
+  allow_discharge_summary: false
+
+split_mode: temporal        # anchor_year_group holdout approximates prospective use
+holdout_year_groups: ["2017 - 2019"]
+split_fractions: [0.6, 0.15, 0.25]
+note_components: 64
+seed: 0

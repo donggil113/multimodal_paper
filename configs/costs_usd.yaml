@@ -1,0 +1,17 @@
+# Indicative 2024 United States list prices, turnaround times and an
+# invasiveness score on [0, 1]. These are defaults, not claims: the reduction
+# study is reported as a frontier so a reader with a different fee schedule can
+# read off their own operating point, and `cost_mode: throughput` reprices the
+# whole analysis in minutes rather than dollars.
+#
+# Replace with a local schedule (e.g. Korean NHIS relative value units) before
+# quoting any absolute saving.
+
+demographics: {cost_usd: 0,   turnaround_min: 0,   invasiveness: 0.00}
+vitals:       {cost_usd: 0,   turnaround_min: 0,   invasiveness: 0.00}
+meds:         {cost_usd: 0,   turnaround_min: 0,   invasiveness: 0.00}
+notes:        {cost_usd: 0,   turnaround_min: 0,   invasiveness: 0.00}
+labs:         {cost_usd: 35,  turnaround_min: 60,  invasiveness: 0.05}
+ecg:          {cost_usd: 25,  turnaround_min: 15,  invasiveness: 0.02}
+cxr:          {cost_usd: 45,  turnaround_min: 45,  invasiveness: 0.10}
+echo:         {cost_usd: 350, turnaround_min: 240, invasiveness: 0.10}

@@ -1,0 +1,5 @@
+# Only needed for raw-waveform / raw-image ingestion from PhysioNet.
+wfdb>=4.1          # MIMIC-IV-ECG waveform reading
+pydicom>=2.4       # MIMIC-CXR DICOM (JPG variant needs only Pillow)
+Pillow>=10.0
+pytest>=7.4

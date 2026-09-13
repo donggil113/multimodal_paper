@@ -1,0 +1,356 @@
+r"""Patient-level test-ordering policies and the retrospective reduction study.
+
+Given per-patient gains :math:`\Delta_i(m\mid S)` (:mod:`infogain.vinfo.conditional`)
+and a cost model, a policy assigns each patient a personalised panel
+:math:`S_i`.  Its value is then evaluated **honestly**: the prediction for
+patient :math:`i` uses only the modalities the policy actually ordered, read off
+the cross-fitted probability for that exact subset.  No policy is ever scored
+with information it declined to buy.
+
+Comparators are chosen so the headline claim cannot be won cheaply:
+
+``order_all``          today's maximal-testing practice: the performance ceiling
+``baseline_only``      order nothing beyond what is free: the cost floor
+``fixed:<m>``          always order one specific test
+``random``             random ordering matched to the same budget
+``risk_band``          the standard clinical heuristic -- test the intermediate-risk
+``infogain``           order iff :math:`\Delta_i(m)/c_m` exceeds a threshold
+
+A reduction claim is only interesting against ``random`` and ``risk_band`` at
+*matched budget*; beating ``baseline_only`` is trivial and beating ``order_all``
+on cost is tautological.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Iterable, Sequence
+
+import numpy as np
+import pandas as pd
+
+from infogain.clinical.cost import CostModel
+from infogain.clinical.net_benefit import (
+    empirical_net_benefit, information_gain_nats, nest_calibrate,
+    restricted_information, safe_omission_bound_local,
+)
+from infogain.theory.lemmas import auroc
+from infogain.utils.logging import get_logger
+from infogain.vinfo.core import subset_key
+
+log = get_logger("infogain.clinical.policy")
+LN2 = float(np.log(2.0))
+
+
+# --------------------------------------------------------------------------- #
+# Policies
+# --------------------------------------------------------------------------- #
+@dataclass
+class PolicyResult:
+    name: str
+    chosen: dict[str, np.ndarray]      # modality -> (n,) bool "ordered"
+    probs: np.ndarray                  # (n,) prediction under the chosen panel
+    cost: np.ndarray                   # (n,) cost incurred
+    param: float = float("nan")
+
+    @property
+    def n_tests(self) -> np.ndarray:
+        return np.sum([v.astype(int) for v in self.chosen.values()], axis=0)
+
+
+def _subset_for_patient(baseline: frozenset[str], chosen: dict[str, np.ndarray],
+                        i: int) -> frozenset[str]:
+    return baseline | frozenset(m for m, v in chosen.items() if v[i])
+
+
+def probs_under_policy(cf, baseline: frozenset[str],
+                       chosen: dict[str, np.ndarray]) -> np.ndarray:
+    """Read each patient's prediction off the subset the policy actually bought."""
+    n = len(cf.y)
+    out = np.empty(n, dtype=np.float64)
+    orderable = sorted(chosen)
+    codes = np.zeros(n, dtype=np.int64)
+    for b, m in enumerate(orderable):
+        codes |= (chosen[m].astype(np.int64) << b)
+    for code in np.unique(codes):
+        sel = codes == code
+        s = baseline | frozenset(m for b, m in enumerate(orderable) if (code >> b) & 1)
+        if not cf.has(s):
+            raise KeyError(f"policy requires unfitted subset {subset_key(s)}")
+        out[sel] = cf.p(s)[sel]
+    return out
+
+
+def policy_order_all(cf, cost_model: CostModel, orderable: Sequence[str]) -> PolicyResult:
+    n = len(cf.y)
+    chosen = {m: np.ones(n, bool) for m in orderable}
+    cost = np.full(n, sum(cost_model.cost(m) for m in orderable))
+    return PolicyResult("order_all", chosen,
+                        probs_under_policy(cf, cf.baseline, chosen), cost)
+
+
+def policy_baseline_only(cf, cost_model: CostModel,
+                         orderable: Sequence[str]) -> PolicyResult:
+    n = len(cf.y)
+    chosen = {m: np.zeros(n, bool) for m in orderable}
+    return PolicyResult("baseline_only", chosen,
+                        probs_under_policy(cf, cf.baseline, chosen), np.zeros(n))
+
+
+def policy_fixed(cf, cost_model: CostModel, orderable: Sequence[str],
+                 keep: Iterable[str]) -> PolicyResult:
+    n = len(cf.y)
+    keep = set(keep)
+    chosen = {m: np.full(n, m in keep) for m in orderable}
+    cost = np.full(n, sum(cost_model.cost(m) for m in keep))
+    return PolicyResult(f"fixed:{'+'.join(sorted(keep)) or 'none'}", chosen,
+                        probs_under_policy(cf, cf.baseline, chosen), cost)
+
+
+def policy_infogain(cf, cost_model: CostModel, deltas: dict[str, np.ndarray],
+                    threshold: float, per_dollar: bool = True) -> PolicyResult:
+    r"""Order :math:`m` for patient :math:`i` iff its yield clears ``threshold``.
+
+    With ``per_dollar`` the criterion is :math:`\Delta_i(m)/c_m > \lambda`
+    (bits per dollar), which is the Lagrangian solution to maximising total
+    information under a budget; without it, the criterion is an absolute
+    information floor, which is the right form when the constraint is "don't
+    skip anything that could matter" rather than money.
+    """
+    n = len(cf.y)
+    chosen, cost = {}, np.zeros(n)
+    for m, d in deltas.items():
+        c = cost_model.cost(m)
+        score = d / max(c, 1e-9) if per_dollar else d
+        take = score > threshold
+        chosen[m] = take
+        cost += take * c
+    return PolicyResult("infogain", chosen,
+                        probs_under_policy(cf, cf.baseline, chosen), cost,
+                        param=threshold)
+
+
+def policy_random(cf, cost_model: CostModel, orderable: Sequence[str],
+                  rate: float, seed: int = 0) -> PolicyResult:
+    n = len(cf.y)
+    rng = np.random.default_rng(seed)
+    chosen, cost = {}, np.zeros(n)
+    for m in orderable:
+        take = rng.random(n) < rate
+        chosen[m] = take
+        cost += take * cost_model.cost(m)
+    return PolicyResult("random", chosen,
+                        probs_under_policy(cf, cf.baseline, chosen), cost, param=rate)
+
+
+def policy_risk_band(cf, cost_model: CostModel, orderable: Sequence[str],
+                     base_risk: np.ndarray, lo_q: float, hi_q: float) -> PolicyResult:
+    """Test the diagnostically uncertain middle -- the standard clinical heuristic.
+
+    Patients whose baseline risk is already very low or very high are left
+    untested on the grounds that no result would change management.  This is the
+    comparator to beat: it is what a thoughtful clinician does without any
+    information theory, and it is genuinely good.
+    """
+    n = len(cf.y)
+    lo, hi = np.quantile(base_risk, [lo_q, hi_q])
+    take = (base_risk >= lo) & (base_risk <= hi)
+    chosen = {m: take.copy() for m in orderable}
+    cost = take * sum(cost_model.cost(m) for m in orderable)
+    return PolicyResult(f"risk_band[{lo_q:.2f},{hi_q:.2f}]", chosen,
+                        probs_under_policy(cf, cf.baseline, chosen), cost,
+                        param=hi_q - lo_q)
+
+
+# --------------------------------------------------------------------------- #
+# Evaluation
+# --------------------------------------------------------------------------- #
+@dataclass
+class PolicyEvaluation:
+    name: str
+    param: float
+    tests_per_patient: float
+    test_fraction: float
+    mean_cost: float
+    auroc: float
+    net_benefit: dict[float, float]
+    restricted_info_bits: float
+    info_vs_all_bits: float
+    certified_nb_loss: dict[float, float]
+    missed_cases_delta: dict[float, int]
+
+    def as_row(self, thresholds: Sequence[float]) -> dict:
+        row = {"policy": self.name, "param": self.param,
+               "tests_per_patient": self.tests_per_patient,
+               "test_fraction": self.test_fraction, "mean_cost": self.mean_cost,
+               "auroc": self.auroc,
+               "restricted_info_bits": self.restricted_info_bits,
+               "info_gap_vs_all_bits": self.info_vs_all_bits}
+        for t in thresholds:
+            row[f"nb@{t:g}"] = self.net_benefit.get(t, np.nan)
+            row[f"nb_loss_bound@{t:g}"] = self.certified_nb_loss.get(t, np.nan)
+            row[f"missed@{t:g}"] = self.missed_cases_delta.get(t, np.nan)
+        return row
+
+
+def evaluate_policy(res: PolicyResult, y: np.ndarray, p_reference: np.ndarray,
+                    thresholds: Sequence[float] = (0.02, 0.05, 0.10, 0.20),
+                    n_orderable: int = 1,
+                    restricted_window: tuple[float, float] = (0.02, 0.30)
+                    ) -> PolicyEvaluation:
+    """Score a policy against the order-everything reference.
+
+    ``info_vs_all_bits`` is the information the policy gives up relative to
+    ordering everything, and ``certified_nb_loss`` is Theorem 2's bound on what
+    that shortfall can cost in net benefit -- a guarantee that holds whether or
+    not the empirical net-benefit difference happens to be favourable in this
+    sample.
+    """
+    p = res.probs
+    nested = nest_calibrate(p_reference, p)
+    gap_bits = information_gain_nats(p_reference, nested) / LN2
+    nb = {}
+    missed = {}
+    cert = {}
+    for t in thresholds:
+        nb[t] = float(empirical_net_benefit(y, p, np.array([t]))[0])
+        ref_flag = p_reference > t
+        pol_flag = p > t
+        missed[t] = int(np.sum((y == 1) & ref_flag & ~pol_flag)
+                        - np.sum((y == 1) & ~ref_flag & pol_flag))
+        cert[t] = safe_omission_bound_local(gap_bits, t)
+    return PolicyEvaluation(
+        name=res.name, param=res.param,
+        tests_per_patient=float(res.n_tests.mean()),
+        test_fraction=float(res.n_tests.mean() / max(n_orderable, 1)),
+        mean_cost=float(res.cost.mean()), auroc=float(auroc(y, p)),
+        net_benefit=nb,
+        restricted_info_bits=restricted_information(p, np.full_like(p, float(y.mean())),
+                                                    *restricted_window),
+        info_vs_all_bits=gap_bits, certified_nb_loss=cert,
+        missed_cases_delta=missed)
+
+
+@dataclass
+class ReductionStudy:
+    frontier: pd.DataFrame
+    comparators: pd.DataFrame
+    thresholds: tuple[float, ...]
+    equal_performance: dict = field(default_factory=dict)
+
+    def summary(self) -> str:
+        eq = self.equal_performance
+        if not eq:
+            return "no equal-performance point found"
+        return (f"At matched AUROC (within {eq['tolerance']:.3f}), INFOGAIN uses "
+                f"{eq['test_fraction']:.1%} of tests vs 100% for order-all: "
+                f"{eq['tests_avoided']:.1%} avoided, "
+                f"${eq['cost_saved']:.2f}/patient saved, "
+                f"AUROC {eq['auroc']:.4f} vs {eq['auroc_all']:.4f}, "
+                f"certified net-benefit loss <= {eq['max_certified_nb_loss']:.5f}")
+
+
+def reduction_study(cf, cohort, deltas: dict[str, np.ndarray],
+                    cost_model: CostModel,
+                    thresholds: Sequence[float] = (0.02, 0.05, 0.10, 0.20),
+                    n_lambda: int = 25, seed: int = 0,
+                    auroc_tolerance: float = 0.005) -> ReductionStudy:
+    """Sweep the INFOGAIN threshold and compare against every baseline policy."""
+    y = cf.y
+    orderable = sorted(deltas)
+    all_res = policy_order_all(cf, cost_model, orderable)
+    p_ref = all_res.probs
+    base_res = policy_baseline_only(cf, cost_model, orderable)
+
+    scores = np.concatenate([deltas[m] / max(cost_model.cost(m), 1e-9)
+                             for m in orderable])
+    scores = scores[np.isfinite(scores) & (scores > 0)]
+    if scores.size == 0:
+        lambdas = np.array([0.0])
+    else:
+        qs = np.linspace(0.0, 0.995, n_lambda)
+        lambdas = np.unique(np.concatenate([[0.0], np.quantile(scores, qs)]))
+
+    rows = []
+    for lam in lambdas:
+        res = policy_infogain(cf, cost_model, deltas, lam, per_dollar=True)
+        ev = evaluate_policy(res, y, p_ref, thresholds, len(orderable))
+        rows.append(ev.as_row(thresholds))
+    frontier = pd.DataFrame(rows).sort_values("test_fraction").reset_index(drop=True)
+
+    comps = [evaluate_policy(all_res, y, p_ref, thresholds, len(orderable)).as_row(thresholds),
+             evaluate_policy(base_res, y, p_ref, thresholds, len(orderable)).as_row(thresholds)]
+    for m in orderable:
+        r = policy_fixed(cf, cost_model, orderable, {m})
+        comps.append(evaluate_policy(r, y, p_ref, thresholds, len(orderable)).as_row(thresholds))
+    base_risk = cf.p(cf.baseline)
+    for lo_q, hi_q in ((0.4, 0.9), (0.25, 0.95), (0.5, 0.95), (0.6, 1.0)):
+        r = policy_risk_band(cf, cost_model, orderable, base_risk, lo_q, hi_q)
+        comps.append(evaluate_policy(r, y, p_ref, thresholds, len(orderable)).as_row(thresholds))
+    for rate in (0.25, 0.5, 0.75):
+        r = policy_random(cf, cost_model, orderable, rate, seed)
+        comps.append(evaluate_policy(r, y, p_ref, thresholds, len(orderable)).as_row(thresholds))
+    comparators = pd.DataFrame(comps)
+
+    auroc_all = float(comparators.loc[comparators["policy"] == "order_all", "auroc"].iloc[0])
+    cost_all = float(comparators.loc[comparators["policy"] == "order_all", "mean_cost"].iloc[0])
+    ok = frontier[frontier["auroc"] >= auroc_all - auroc_tolerance]
+    eq = {}
+    if len(ok):
+        best = ok.sort_values("test_fraction").iloc[0]
+        nb_cols = [c for c in frontier.columns if c.startswith("nb_loss_bound@")]
+        eq = {"tolerance": auroc_tolerance,
+              "lambda": float(best["param"]),
+              "test_fraction": float(best["test_fraction"]),
+              "tests_avoided": float(1.0 - best["test_fraction"]),
+              "cost_saved": float(cost_all - best["mean_cost"]),
+              "cost_saved_pct": float(1.0 - best["mean_cost"] / max(cost_all, 1e-9)),
+              "auroc": float(best["auroc"]), "auroc_all": auroc_all,
+              "info_gap_bits": float(best["info_gap_vs_all_bits"]),
+              "max_certified_nb_loss": float(max(best[c] for c in nb_cols))}
+    return ReductionStudy(frontier=frontier, comparators=comparators,
+                          thresholds=tuple(thresholds), equal_performance=eq)
+
+
+# --------------------------------------------------------------------------- #
+# Sequential (greedy) acquisition
+# --------------------------------------------------------------------------- #
+def greedy_sequential(cf, cohort, gain_fn, cost_model: CostModel,
+                      orderable: Sequence[str], max_tests: int = 2,
+                      lambda_bits_per_dollar: float = 0.0) -> PolicyResult:
+    r"""Acquire tests one at a time, re-scoring after each.
+
+    ``gain_fn(modality, context) -> (n,) bits`` must recompute the per-patient
+    gain against the *current* per-patient context.  Re-scoring matters exactly
+    when modalities are redundant: after a chest radiograph shows congestion, the
+    laboratory panel's remaining value collapses for that patient, and a
+    one-shot policy scored against the free baseline would buy both.
+    """
+    n = len(cf.y)
+    chosen = {m: np.zeros(n, bool) for m in orderable}
+    cost = np.zeros(n)
+    active = np.ones(n, bool)
+
+    for step in range(max_tests):
+        best_gain = np.zeros(n)
+        best_mod = np.full(n, -1)
+        ctx_key = {m: None for m in orderable}
+        for j, m in enumerate(orderable):
+            ctx = tuple(sorted(o for o in orderable if chosen[o].any()))
+            d = gain_fn(m, ctx)
+            score = d / max(cost_model.cost(m), 1e-9)
+            upd = active & ~chosen[m] & (score > best_gain) & (score > lambda_bits_per_dollar)
+            best_gain = np.where(upd, score, best_gain)
+            best_mod = np.where(upd, j, best_mod)
+            ctx_key[m] = ctx
+        take_any = best_mod >= 0
+        if not take_any.any():
+            break
+        for j, m in enumerate(orderable):
+            sel = take_any & (best_mod == j)
+            chosen[m] |= sel
+            cost += sel * cost_model.cost(m)
+        active &= take_any
+        log.info("greedy step %d: ordered for %d patients", step + 1, int(take_any.sum()))
+
+    return PolicyResult(f"greedy(max={max_tests})", chosen,
+                        probs_under_policy(cf, cf.baseline, chosen), cost)

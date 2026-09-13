@@ -1,0 +1,35 @@
+# Estimation and analysis settings for `infogain.experiments.run_cohort`.
+
+train:
+  epochs: 130
+  batch_size: 512
+  lr: 0.003
+  weight_decay: 0.0001
+  patience: 18
+  n_folds: 5            # cross-fitting: every patient scored out of fold
+  seeds: [0, 1, 2]      # between-seed spread enters the confidence intervals
+  inner_val_frac: 0.15
+  null_mode: prevalence # the provable infimum over the constant sub-family
+  family:
+    emb_dim: 48
+    enc_hidden: 128
+    head_hidden: 192
+    n_head_layers: 2
+    dropout: 0.15
+    fusion: attention   # gives modalities a multiplicative path to each other,
+    n_attn_layers: 2    # which is where synergistic information lives
+    n_heads: 4
+
+gain:
+  n_samples: 24         # Monte-Carlo draws of the counterfactual test result
+  n_neighbors: 40       # donor pool per patient for the conditional bootstrap
+  sampler: knn          # {knn, gaussian, marginal}; marginal is the control
+  min_donors: 10
+
+# Risk thresholds a clinician might plausibly hold. Information earned outside
+# this window buys nothing, so the restricted quantity is what gets reported.
+threshold_window: [0.02, 0.30]
+decision_thresholds: [0.02, 0.05, 0.10, 0.20]
+
+cost_mode: money        # {money, throughput, harm}
+seed: 0

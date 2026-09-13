@@ -1,0 +1,679 @@
+% Supplementary Information for INFOGAIN
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{graphicx,booktabs,caption}
+\usepackage[expansion=false]{microtype}
+\usepackage[hidelinks]{hyperref}
+\usepackage[numbers,sort&compress]{natbib}
+
+\captionsetup{font=small,labelfont=bf}
+\graphicspath{{figures/}{../results/cohort_synthetic/mortality_30d/figures/}%
+              {../results/simulation/figures/}}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{proposition}{Proposition}
+\newtheorem{corollary}{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+
+\DeclareMathOperator{\KL}{KL}
+\DeclareMathOperator{\TV}{TV}
+\DeclareMathOperator{\NB}{NB}
+\DeclareMathOperator{\Ber}{Ber}
+\newcommand{\Vc}{\mathcal{V}}
+\newcommand{\IV}{I_{\Vc}}
+\newcommand{\HV}{H_{\Vc}}
+\newcommand{\pvi}{\mathrm{pvi}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prob}{\mathbb{P}}
+\renewcommand{\thesection}{S\arabic{section}}
+\renewcommand{\thetable}{S\arabic{table}}
+\renewcommand{\thefigure}{S\arabic{figure}}
+
+
+% Include a figure if the analysis that produces it has been run, otherwise leave
+% a visible placeholder. This lets the manuscript compile from a partial results
+% tree without ever silently dropping a panel.
+\newcommand{\infogainfig}[2][\textwidth]{%
+  \IfFileExists{#2.pdf}{\includegraphics[width=#1]{#2}}{%
+    \IfFileExists{#2.png}{\includegraphics[width=#1]{#2}}{%
+      \fbox{\parbox[c][0.26\textheight][c]{\dimexpr#1-2\fboxsep-2\fboxrule\relax}{%
+        \centering\ttfamily\small
+        [figure \detokenize{#2} not yet generated;
+         run \detokenize{python scripts/run_all.py}]}}}}%
+}
+
+\input{numbers}
+
+\title{\bfseries Supplementary Information\\[2mm]
+INFOGAIN: decomposing the information value of multimodal diagnostic testing
+at the level of the individual patient}
+\date{}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\clearpage
+
+% ===================================================================== %
+\section{Setting and standing assumptions}
+\label{sec:setup}
+
+Throughout, $Y\in\{0,1\}$ is the endpoint with prevalence
+$\pi=\Prob(Y=1)\in(0,1)$, $M$ is a finite set of modalities, and
+$X_S=(X_m)_{m\in S}$ for $S\subseteq M$. Logarithms are natural unless a
+quantity is reported in bits, in which case it is divided by $\log 2$. We write
+$H(\pi)=-\pi\log\pi-(1-\pi)\log(1-\pi)$ and $\eta_S(x)=\Prob(Y=1\mid X_S=x)$.
+
+\begin{definition}[$\Vc$-usable information \citep{xu2020vinfo}]
+For a family $\Vc$ of conditional distributions of $Y$ given an input (with the
+convention that the input may be the empty tuple),
+\[
+\HV(Y)=\inf_{f\in\Vc}\E[-\log f[\varnothing](Y)],\qquad
+\HV(Y\mid X_S)=\inf_{f\in\Vc}\E[-\log f[X_S](Y)],
+\]
+and $\IV(X_S\to Y)=\HV(Y)-\HV(Y\mid X_S)$.
+\end{definition}
+
+\begin{definition}[Masking closure]
+$\Vc$ is \emph{closed under masking} if for every $f\in\Vc$ and every
+$S\subseteq T\subseteq M$ there is $g\in\Vc$ with
+$g[x_T]=f[x_S]$ for all $x$. The construction in
+Methods~4 satisfies this by design: setting a presence flag to zero
+substitutes a learned constant token for the modality's embedding, so the
+resulting predictor is a member of the same parametric family.
+\end{definition}
+
+\begin{proposition}[Monotonicity]
+\label{prop:mono}
+If $\Vc$ is closed under masking then $S\subseteq T$ implies
+$\HV(Y\mid X_T)\le \HV(Y\mid X_S)$ and hence
+$\IV(X_S\to Y)\le \IV(X_T\to Y)$. Consequently the conditional gain
+$U(m\mid S)=\IV(X_{S\cup m}\to Y)-\IV(X_S\to Y)$ is non-negative in population.
+\end{proposition}
+
+\begin{proof}
+Every predictor available on $X_S$ is available on $X_T$ by masking the extra
+coordinates, so the infimum defining $\HV(Y\mid X_T)$ is over a superset of the
+achievable risks.
+\end{proof}
+
+\begin{remark}
+Proposition~\ref{prop:mono} is a population statement. A finite sample and an
+imperfectly optimised head can violate it by a few thousandths of a bit; we
+report the number and size of such violations with every run and, alongside the
+raw values, the Euclidean projection onto the monotone cone obtained by Dykstra's
+cyclic projection over the covering relations of the subset lattice.
+\end{remark}
+
+\begin{remark}[Direction of the estimation error]
+\label{rem:lowerbound}
+Because $\HV(Y\mid X_S)$ is an infimum, any particular trained $\hat f_S$
+satisfies $\E[-\log \hat f_S]\ge \HV(Y\mid X_S)$, so the plug-in
+$\hat\IV$ \emph{under}-estimates $\IV$ up to sampling noise. Architectural or
+optimisation weakness therefore costs tightness, never validity. Section~S5
+makes this quantitative.
+\end{remark}
+
+% ===================================================================== %
+\section{From information to discrimination: Lemmas and Theorem 1}
+\label{sec:thm1}
+
+\subsection{L1: the posterior maximises AUROC}
+
+\begin{lemma}[Neyman--Pearson dominance]
+\label{lem:np}
+Let $A(s)$ denote the AUROC of a score $s$. Among all $X_T$-measurable scores,
+$A$ is maximised by $\eta_T$. Write $A^*_T=A(\eta_T)$.
+\end{lemma}
+
+\begin{proof}
+For any score $s$ and any level $\alpha$, the Neyman--Pearson lemma states that
+the test rejecting on $\{\Lambda>c\}$, where $\Lambda=\mathrm{d}P_{X|1}/\mathrm{d}P_{X|0}$
+and $c$ is chosen so the size is $\alpha$, has power at least that of any test
+of size $\alpha$; in particular at least that of $\{s>t\}$ with
+$\mathrm{FPR}(t)=\alpha$. Hence the ROC curve of $\Lambda$ dominates that of $s$
+pointwise, and $A=\int_0^1\mathrm{TPR}\,\mathrm{d}\mathrm{FPR}$ inherits the
+inequality. Finally $\eta_T=\pi\Lambda/(\pi\Lambda+1-\pi)$ is a strictly
+increasing transform of $\Lambda$, and AUROC is invariant to strictly increasing
+transforms.
+\end{proof}
+
+\subsection{L2: the Kolmogorov--Smirnov sandwich}
+
+Let $F_1,F_0$ be the CDFs of the score under $Y=1$ and $Y=0$, and let
+\[
+D^+ \;=\; \sup_t\,[F_0(t)-F_1(t)] \;=\; \sup_t\,[\mathrm{TPR}(t)-\mathrm{FPR}(t)]\;\ge\;0
+\]
+be the one-sided Kolmogorov--Smirnov statistic (Youden's $J$ at its best
+threshold; non-negative because the empty rejection region attains $0$).
+
+\begin{lemma}[KS sandwich]
+\label{lem:ks}
+For any score, $2A-1\le 2D^+$. If in addition the ROC curve is concave, then
+$2A-1\ge D^+$.
+\end{lemma}
+
+\begin{proof}
+\emph{Upper bound.} With the mid-rank convention for ties,
+$A=\int F_0\,\mathrm{d}F_1$ and $\int F_1\,\mathrm{d}F_1=\tfrac12$ exactly (also
+in the presence of atoms). Since $F_0\le F_1+D^+$ pointwise,
+$A\le \int F_1\,\mathrm{d}F_1+D^+=\tfrac12+D^+$.
+
+\emph{Lower bound.} Let $(a,b)=(\mathrm{FPR}(t^*),\mathrm{TPR}(t^*))$ attain
+$D^+=b-a$. A concave ROC through $(0,0)$ and $(1,1)$ lies above the chords
+$(0,0)\to(a,b)$ and $(a,b)\to(1,1)$, whose combined area is
+$\tfrac12 ab+\tfrac12(1-a)(1+b)=\tfrac12(1+b-a)$. Hence
+$A\ge \tfrac12(1+D^+)$.
+\end{proof}
+
+\begin{remark}[Concavity is not decoration]
+\label{rem:concave}
+The lower bound genuinely fails for non-concave ROCs. Take positives all tied at
+a score just below the median negative: then $A=\tfrac12$ while at the threshold
+just below that common value $\mathrm{TPR}=1$, $\mathrm{FPR}=\tfrac12$, so
+$D^+=\tfrac12>2A-1=0$. We therefore state and apply the lower bound for the ROC
+convex hull \citep{provost2001robust}, which is achievable by a monotone
+recalibration of the score and hence never exceeds $A^*$.
+\end{remark}
+
+\begin{lemma}
+\label{lem:dtv}
+For the posterior score, $D^+=\TV(P_{X|1},P_{X|0})$.
+\end{lemma}
+
+\begin{proof}
+$\TV=\sup_B|P_1(B)-P_0(B)|$ is attained at $B=\{\Lambda>1\}$, a superlevel set of
+$\eta$. The superlevel sets of $\eta$ are exactly the sets $\{\eta>t\}$, and
+$P_1(\{\eta>t\})-P_0(\{\eta>t\})=\mathrm{TPR}(t)-\mathrm{FPR}(t)$; taking the
+supremum over $t$ gives $D^+=\TV$.
+\end{proof}
+
+\subsection{L3: information against total variation}
+
+Two elementary identities drive both directions. Since $\E[\eta]=\pi$,
+\begin{equation}
+\label{eq:tv-eta}
+\TV(P_{X|1},P_{X|0})=\tfrac12\!\int\!|p_1-p_0| = \frac{\E|\eta-\pi|}{2\pi(1-\pi)},
+\qquad
+I(X;Y)=H(\pi)-\E[H(\eta)] = \E\big[\KL(\Ber(\eta)\,\|\,\Ber(\pi))\big].
+\end{equation}
+The first follows from $p_1=\eta p/\pi$ and $p_0=(1-\eta)p/(1-\pi)$, giving
+$p_1-p_0=p(\eta-\pi)/(\pi(1-\pi))$; the second by expanding the $\KL$ and using
+$\E[\eta]=\pi$.
+
+\begin{lemma}[L3]
+\label{lem:jstv}
+With $\TV=\TV(P_{X|1},P_{X|0})$ and $I=I(X;Y)$ in nats,
+\[
+8\pi^2(1-\pi)^2\,\TV^2 \;\le\; I \;\le\; H(\pi)\,\TV .
+\]
+\end{lemma}
+
+\begin{proof}
+\emph{Upper bound.} Put $\varphi(\eta)=H(\pi)-H(\eta)$, so $I=\E[\varphi(\eta)]$
+by \eqref{eq:tv-eta}. The binary entropy $H$ is concave with $H(0)=H(1)=0$, so it
+lies above each of its chords: on $[0,\pi]$, $H(\eta)\ge (\eta/\pi)H(\pi)$, and
+on $[\pi,1]$, $H(\eta)\ge H(\pi)(1-\eta)/(1-\pi)$. Hence
+\[
+\varphi(\eta)\;\le\; H(\pi)\left[\frac{(\pi-\eta)_+}{\pi}+\frac{(\eta-\pi)_+}{1-\pi}\right].
+\]
+Because $\E[\eta]=\pi$ we have $\E[(\pi-\eta)_+]=\E[(\eta-\pi)_+]=\tfrac12\E|\eta-\pi|=:D$,
+so taking expectations,
+\[
+I \;\le\; H(\pi)\,D\left[\frac1\pi+\frac1{1-\pi}\right]
+  \;=\; \frac{H(\pi)\,D}{\pi(1-\pi)} \;=\; H(\pi)\,\TV,
+\]
+the last step by \eqref{eq:tv-eta}, since $\TV=2D/(2\pi(1-\pi))=D/(\pi(1-\pi))$.
+
+\emph{Lower bound.} Pinsker's inequality for Bernoulli laws gives
+$\KL(\Ber(\eta)\|\Ber(\pi))\ge 2(\eta-\pi)^2$, so by \eqref{eq:tv-eta} and
+Jensen,
+\[
+I \;\ge\; 2\,\E[(\eta-\pi)^2]\;\ge\;2\big(\E|\eta-\pi|\big)^2
+  \;=\;2\big(2\pi(1-\pi)\TV\big)^2 \;=\; 8\pi^2(1-\pi)^2\TV^2 . \qedhere
+\]
+\end{proof}
+
+Both inequalities are tight in the relevant limits: the upper bound with equality
+when $\eta\in\{0,1\}$ (disjoint class-conditionals), the lower bound
+asymptotically when $|\eta-\pi|$ is constant. In $2\times10^{4}$ Monte-Carlo
+trials over Dirichlet class-conditionals with random $\pi$ neither was violated;
+the worst slack was $5\times10^{-14}$, i.e.\ machine precision
+(\texttt{infogain.theory.lemmas.verify\_js\_tv}).
+
+\begin{remark}[A sharper constant we do not use]
+The stronger inequality $I\ge 2\pi(1-\pi)\TV^2$ --- larger by a factor
+$1/(4\pi(1-\pi))\ge1$ --- also held in every trial. Reducing it to two-point laws
+by Bauer's maximum principle (the functional
+$(\E|\eta-\pi|)^2/(2\pi(1-\pi))-\E[\KL]$ is convex in the law, and the extreme
+points of the set of laws on $[0,1]$ with mean $\pi$ are supported on at most two
+points) leaves a two-parameter inequality we have not proved analytically. We
+therefore state and use only the Pinsker version. Nothing depends on the
+difference: the sharper constant would only tighten the \emph{upper} end of the
+AUROC bracket, and a looser upper bound is still an upper bound.
+\end{remark}
+
+\begin{corollary}[Information bracket for achievable AUROC]
+\label{cor:bracket}
+$\dfrac12+\dfrac{I}{2H(\pi)}\;\le\;A^*\;\le\;\dfrac12+\dfrac{\sqrt I}{2\sqrt2\,\pi(1-\pi)}$,
+both sides clipped to $[\tfrac12,1]$.
+\end{corollary}
+
+\begin{proof}
+Combine Lemmas~\ref{lem:np}--\ref{lem:jstv}: the lower bound from
+$2A^*-1\ge D^+=\TV\ge I/H(\pi)$, the upper from
+$2A^*-1\le 2D^+=2\TV\le 2\sqrt{I/(8\pi^2(1-\pi)^2)}$.
+\end{proof}
+
+\subsection{Theorem 1: synergy lower-bounds the achievable gain}
+
+\begin{theorem}[Stratified achievable-AUROC gain]
+\label{thm:s-auroc}
+Let $\{B_k\}_{k=1}^K$ be any partition of the range of $\eta_S$ into intervals,
+let $w_k$ be the fraction of (case, control) pairs with both members in $B_k$,
+and let $A_k(\cdot)$ denote AUROC computed within $B_k$. Then
+\[
+A^*_{S\cup m}\;\ge\;A(\eta_S)\;+\;\sum_{k=1}^{K} w_k\big[A_k(\eta_{S\cup m})-A_k(\eta_S)\big].
+\]
+In population $A(\eta_S)=A^*_S$ by Lemma~\ref{lem:np}, so the sum lower-bounds
+the achievable gain $A^*_{S\cup m}-A^*_S$.
+\end{theorem}
+
+\begin{proof}
+Index the bins in increasing order of $\eta_S$ and define the lexicographic score
+\[
+s_\lambda(x) \;=\; k(x) \;+\; \lambda\,\eta_{S\cup m}(x),
+\qquad \lambda \in \Big(0,\ \big[\sup \eta_{S\cup m}-\inf \eta_{S\cup m}\big]^{-1}\Big),
+\]
+where $k(x)$ is the index of the bin containing $\eta_S(x)$. It is
+$X_{S\cup m}$-measurable, so $A^*_{S\cup m}\ge A(s_\lambda)$ by
+Lemma~\ref{lem:np}.
+
+Decompose $A$ over ordered pairs (one case, one control). For a pair in
+different bins, the choice of $\lambda$ makes the bin index decide the
+comparison, and since bins are intervals ordered by $\eta_S$ the decision agrees
+with the one $\eta_S$ makes; such pairs therefore contribute identically to
+$A(s_\lambda)$ and to $A(\eta_S)$. For a pair inside bin $k$ the bin indices tie
+and $\eta_{S\cup m}$ decides. Writing $w_k$ for the share of pairs inside bin $k$
+and $1-\sum_k w_k$ for the share across bins,
+\[
+A(s_\lambda) \;=\; \underbrace{\Big[A(\eta_S)-\sum_k w_k A_k(\eta_S)\Big]}_{\text{across-bin part, unchanged}}
+\;+\;\sum_k w_k A_k(\eta_{S\cup m}),
+\]
+which rearranges to the claim.
+\end{proof}
+
+\begin{corollary}[Information form]
+\label{cor:thm1-info}
+Applying Corollary~\ref{cor:bracket} inside each bin, with $\pi_k$ the within-bin
+prevalence and $U_k=\E[U(m\mid S)\mid B_k]$ the within-bin conditional usable
+information,
+\[
+A^*_{S\cup m}-A^*_S \;\ge\; \sum_k w_k\left[\frac{U_k}{2H(\pi_k)}-\big(A_k(\eta_S)-\tfrac12\big)\right]_+ .
+\]
+As the partition refines, $A_k(\eta_S)\to\tfrac12$ and the bound is driven purely
+by the within-bin conditional information, i.e.\ by the synergy term.
+\end{corollary}
+
+\begin{remark}[Why a stratified statement is necessary]
+AUROC is not a proper scoring rule, so no unconditional inequality of the form
+``$\Delta I\ge\varepsilon \Rightarrow \Delta A \ge g(\varepsilon)>0$'' can hold:
+a model can gain information purely by recalibration while leaving every ranking
+--- and hence AUROC --- untouched. Theorem~\ref{thm:s-auroc} sidesteps this by
+bounding what is \emph{achievable} rather than what a particular score achieves,
+and by localising to the strata inside which the ranking must change.
+\end{remark}
+
+The bound never exceeded the achievable gain in $200$ synergy-dominated
+simulations, and was informative ($>0.005$ AUROC) in \simRecovery{}--scale
+regimes; on exact simulator posteriors it held for every modality
+(\simThmOneHolds).
+
+% ===================================================================== %
+\section{Theorem 3: the information--net-benefit identity}
+\label{sec:thm3}
+
+Let $\eta_1=\eta_S$ and $\eta_2=\eta_{S\cup m}$, and put
+$V_j(t)=\E[(\eta_j-t)_+]$, $\NB_j(t)=V_j(t)/(1-t)$.
+
+\begin{lemma}[Net benefit of the Bayes rule]
+\label{lem:nb}
+The rule ``treat iff $\eta>t$'' has net benefit
+$\NB(t)=\E[(\eta-t)_+]/(1-t)$, where net benefit is
+$\mathrm{TP}/n-(\mathrm{FP}/n)\cdot t/(1-t)$ \citep{vickers2006decision}.
+\end{lemma}
+
+\begin{proof}
+With $w=t/(1-t)$, $\E[\mathrm{TP}/n]=\E[\mathbf 1\{\eta>t\}\eta]$ and
+$\E[\mathrm{FP}/n]=\E[\mathbf 1\{\eta>t\}(1-\eta)]$, so
+$\NB(t)=\E[\mathbf 1\{\eta>t\}(\eta(1+w)-w)]=(1+w)\E[(\eta-t)_+]$
+because $w/(1+w)=t$; and $1+w=1/(1-t)$.
+\end{proof}
+
+\begin{lemma}[Schervish representation for the binary log-loss]
+\label{lem:scherv}
+Let $G(p)=p\log p+(1-p)\log(1-p)$ and $\nu(t)=G''(t)=1/(t(1-t))$. For
+$p,q\in(0,1)$,
+\[
+\KL(\Ber(p)\|\Ber(q)) \;=\; \int_0^1\Big[(p-t)_+-(q-t)_+-\mathbf 1\{q>t\}(p-q)\Big]\nu(t)\,\mathrm{d}t .
+\]
+\end{lemma}
+
+\begin{proof}
+The bracket vanishes for $t<\min(p,q)$ (it equals $(p-t)-(q-t)-(p-q)=0$) and for
+$t>\max(p,q)$ (all three terms vanish), so the integrand is supported on the
+interval between $p$ and $q$ and the integral converges despite
+$\int_0\nu=\infty$. On $q<t<p$ the bracket is $p-t$; on $p<t<q$ it is $t-p$; in
+both cases $|p-t|$. Hence the right-hand side equals
+$\int_{\min}^{\max}|p-t|\nu(t)\,\mathrm{d}t$, which is the Bregman divergence of
+$G$ evaluated at $(p,q)$ by the integral form of Taylor's theorem
+$G(p)-G(q)-G'(q)(p-q)=\int_q^p (p-t)G''(t)\,\mathrm{d}t$; and the Bregman
+divergence of the negative binary entropy is exactly
+$\KL(\Ber(p)\|\Ber(q))$ \citep{schervish1989general}.
+\end{proof}
+
+\begin{theorem}[Information--net-benefit identity]
+\label{thm:s-identity}
+If $\eta_1=\E[\eta_2\mid X_S]$ (the nesting condition), then in nats
+\[
+\Delta I \;:=\; \E\,\KL(\Ber(\eta_2)\|\Ber(\eta_1))
+\;=\;\int_0^1\big[V_2(t)-V_1(t)\big]\frac{\mathrm{d}t}{t(1-t)}
+\;=\;\int_0^1\big[\NB_2(t)-\NB_1(t)\big]\frac{\mathrm{d}t}{t}.
+\]
+\end{theorem}
+
+\begin{proof}
+Take expectations in Lemma~\ref{lem:scherv} with $p=\eta_2$, $q=\eta_1$. The
+third term has conditional expectation
+$\E[\mathbf 1\{\eta_1>t\}(\eta_2-\eta_1)\mid X_S]=\mathbf 1\{\eta_1>t\}\,
+\E[\eta_2-\eta_1\mid X_S]=0$ by the nesting condition, since
+$\mathbf 1\{\eta_1>t\}$ is $X_S$-measurable. Fubini is licensed because the
+integrand is non-negative after this cancellation (by
+Proposition~\ref{prop:mono}, or directly by Jensen: $V_2\ge V_1$ since
+$(\cdot-t)_+$ is convex). The first equality follows; the second is
+Lemma~\ref{lem:nb}.
+\end{proof}
+
+\begin{remark}[Convergence at the endpoints]
+Near $t=0$, $V_j(t)=\pi-\E[\min(\eta_j,t)]$, so
+$V_2(t)-V_1(t)=\E[\min(\eta_1,t)]-\E[\min(\eta_2,t)]$, which is $O(t)$; the
+integrand $\Delta V/(t(1-t))$ is therefore bounded there. Near $t=1$,
+$\Delta V(t)\le V_2(t)\le (1-t)$, so the integrand is again bounded.
+\end{remark}
+
+\begin{definition}[Clinically restricted usable information]
+For a threshold window $[a,b]\subset(0,1)$,
+$I^{[a,b]}:=\int_a^b \Delta\NB(t)\,\mathrm{d}t/t$.
+\end{definition}
+
+Since $\Delta\NB\ge0$, $I^{[a,b]}\le\Delta I$, with the deficit being bits
+purchased at thresholds outside clinical practice. Theorem~\ref{thm:s-identity}
+also gives immediately
+$\sup_{t\in[a,b]}\Delta\NB(t)\ \ge\ I^{[a,b]}/\log(b/a)$: information gained in
+the window must show up as net benefit somewhere in it.
+
+\paragraph{Numerical verification.} Over \thyIdentityTrials\ random nested
+posterior pairs of $3\times10^4$ patients each, the maximum relative discrepancy
+between the two sides was \thyIdentityRelErr; on the fitted cohort models it was
+\primaryIdentityRelErr\ (Fig.~7 of the main text).
+
+% ===================================================================== %
+\section{Theorem 2: certified safe omission}
+\label{sec:thm2}
+
+\begin{theorem}[Global bound]
+\label{thm:s-omit-global}
+Suppose omitting modality $m$ forgoes $\Delta I\le\varepsilon$ nats. Then for
+every $t\in(0,1)$, $\Delta\NB(t)\le\sqrt{\varepsilon/2}\,/\,(1-t)$.
+\end{theorem}
+
+\begin{proof}
+Write $\Delta V=V_2-V_1\ge0$. Its derivative is
+$\Delta V'(t)=\Prob(\eta_1>t)-\Prob(\eta_2>t)$, so $|\Delta V'|\le1$: $\Delta V$
+is $1$-Lipschitz. Since $\nu(t)=1/(t(1-t))\ge4$ on $(0,1)$,
+Theorem~\ref{thm:s-identity} gives
+$\int_0^1\Delta V(t)\,\mathrm{d}t\le \varepsilon/4$. A non-negative $1$-Lipschitz
+function with supremum $h$ attained at $t_0$ dominates the tent
+$(h-|t-t_0|)_+$, whose integral is at least $h^2/2$ (exactly $h^2$ for an
+interior maximum, $h^2/2$ at an endpoint). Hence
+$h^2/2\le\varepsilon/4$, i.e.\ $h\le\sqrt{\varepsilon/2}$, and
+$\Delta\NB(t)=\Delta V(t)/(1-t)$.
+\end{proof}
+
+\begin{theorem}[Threshold-localised bound]
+\label{thm:s-omit-local}
+Fix $t_0\in(0,1)$ and let $v^\star(\varepsilon,t_0)$ be the unique solution of
+\[
+\int_{t_0-v}^{t_0+v}\big(v-|t-t_0|\big)\,\frac{\mathrm{d}t}{t(1-t)} \;=\; \varepsilon
+\]
+(intersected with $(0,1)$). Then $\Delta V(t_0)\le v^\star$ and
+$\Delta\NB(t_0)\le v^\star/(1-t_0)$.
+\end{theorem}
+
+\begin{proof}
+Identical to Theorem~\ref{thm:s-omit-global} but retaining the true weight rather
+than the bound $\nu\ge4$: if $\Delta V(t_0)=v$ then, by non-negativity and
+$1$-Lipschitzness, $\Delta V(t)\ge (v-|t-t_0|)_+$ everywhere, so
+$\varepsilon=\int\Delta V\nu\ge\int (v-|t-t_0|)_+\nu$. The left-hand side of the
+displayed equation is continuous and strictly increasing in $v$, giving
+uniqueness.
+\end{proof}
+
+Because $\nu$ blows up at small $t$, Theorem~\ref{thm:s-omit-local} is
+substantially tighter exactly where triage decisions live: at $t_0=0.10$ and
+$\varepsilon$ corresponding to $0.05$ bits, the global bound gives
+$\Delta\NB\le0.146$ and the localised bound $\Delta\NB\le0.061$.
+
+\begin{corollary}[Cohort-level omission]
+The per-patient bound is concave in $\varepsilon$, so by Jensen the
+cohort-average net-benefit loss from omitting $m$ for a set of patients is at
+most $v^\star(\bar\varepsilon,t_0)/(1-t_0)$ with $\bar\varepsilon$ the average
+forgone information over those patients; patients for whom the test is kept
+contribute zero.
+\end{corollary}
+
+\begin{corollary}[Study planning]
+Inverting $v^\star$ gives the minimum information gain a test must deliver before
+it could move the decision curve at threshold $t_0$ by a clinically visible
+amount --- a power calculation in bits.
+\end{corollary}
+
+Both bounds dominated the realised loss in all $300$ Monte-Carlo trials and, on
+exact simulator posteriors, for every modality and threshold (\simThmTwoHolds).
+
+% ===================================================================== %
+\section{Properties of the context-relative decomposition}
+\label{sec:decomp-props}
+
+\begin{proposition}[Exactness and disjointness]
+With $I_m$, $U(m\mid S)$, $R(m\mid S)$, $\mathrm{Syn}(m\mid S)$ as in
+Section~2.1 of the main text,
+$U(m\mid S)=I_m-R(m\mid S)+\mathrm{Syn}(m\mid S)$ identically,
+$R,\mathrm{Syn}\ge0$, and $R\cdot\mathrm{Syn}=0$.
+\end{proposition}
+
+\begin{proof}
+Immediate from $x=(x)_+-(-x)_+$ applied to $x=U-I_m$.
+\end{proof}
+
+\begin{remark}[Relation to partial information decomposition]
+The classical PID lattice \citep{williams2010pid} requires a redundancy
+functional that its axioms do not determine, and the leading candidates
+\citep{bertschinger2014uniqueinfo,griffith2014synergy} disagree on real data. We
+avoid the choice rather than make it: by conditioning on the context actually in
+hand, $R$ and $\mathrm{Syn}$ become differences of separately estimable
+quantities. The price is that they are properties of $(m,S)$ rather than of the
+modalities alone --- which is precisely the clinical content, since the value of
+a test is not a property of the test.
+\end{remark}
+
+\begin{proposition}[Shapley attribution]
+Let $v(T)=\IV(X_{S_0\cup T}\to Y)-\IV(X_{S_0}\to Y)$ for $T$ a subset of the
+orderable modalities, and
+$\varphi_m=\sum_{T\subseteq M_o\setminus m}\frac{|T|!\,(|M_o|-|T|-1)!}{|M_o|!}
+[v(T\cup m)-v(T)]$. Then $\varphi$ is the unique attribution satisfying
+efficiency, symmetry, null-player and additivity \citep{shapley1953value}, and
+$\sum_m\varphi_m=v(M_o)$.
+\end{proposition}
+
+Because $v$ is itself a sample mean of pointwise values, $\varphi_m$ is a mean of
+\emph{per-patient} Shapley contributions, which yields a patient-level
+attribution and a bootstrap interval at no extra cost. Efficiency is verified
+numerically at each run; the residual is below $10^{-15}$ bits.
+
+% ===================================================================== %
+\section{Finite-sample behaviour of the estimator}
+\label{sec:finite}
+
+Let $\pvi_i(S)=\log_2 f_S(y_i\mid x_i^S)-\log_2 f_\varnothing(y_i)$, clipped to
+$[-C,C]$ with $C=8$ bits, evaluated out of fold.
+
+\begin{theorem}[Two-sided bracket]
+\label{thm:s-bracket}
+Let $\hat I=\frac1n\sum_i\pvi_i(S)$ and let $\hat V$ be its sample variance.
+With probability at least $1-\delta$,
+\[
+\IV(X_S\to Y)\;\ge\;\hat I-\varepsilon_{\mathrm{EB}},\qquad
+\IV(X_S\to Y)\;\le\;\hat I+\varepsilon_{\mathrm{EB}}+2L_\ell\mathfrak R_n(\Vc)+\gamma_{\mathrm{opt}},
+\]
+where
+$\varepsilon_{\mathrm{EB}}=\sqrt{2\hat V\log(4/\delta)/n}+\tfrac{7\cdot 2C\log(4/\delta)}{3(n-1)}$
+is the empirical-Bernstein deviation \citep{maurer2009empirical},
+$\mathfrak R_n(\Vc)$ the Rademacher complexity of the head class, $L_\ell$ the
+Lipschitz constant of the loss in the logit on the clipped region, and
+$\gamma_{\mathrm{opt}}$ the optimisation gap.
+\end{theorem}
+
+\begin{proof}
+The lower bound needs no capacity control: $\hat f_S\in\Vc$ witnesses
+$\HV(Y\mid X_S)\le\E[-\log \hat f_S]$ (Remark~\ref{rem:lowerbound}), and
+$\varepsilon_{\mathrm{EB}}$ bounds the deviation of the out-of-fold sample mean of
+a variable in an interval of width $2C$. The upper bound adds the uniform
+convergence term needed to pass from the trained predictor's risk to the family
+infimum, plus the residual optimisation gap.
+\end{proof}
+
+We instantiate $\mathfrak R_n$ by the norm-based bound of
+\citet{golowich2018size}, $\mathfrak R_n\le B\big(\prod_{l}\|W_l\|_F\big)
+\sqrt{2L\log 2}/\sqrt n$, computed from the trained weights. It is loose in
+absolute terms, as all norm-based bounds are, but it is computable, monotone in
+the quantities weight decay controls, and it makes the upper side a checkable
+statement rather than an asymptotic gesture.
+
+\paragraph{Bias.} Two biases act in opposite directions. Evaluation bias
+(upward) is removed by construction through cross-fitting
+\citep{chernozhukov2018dml}. Learning bias (downward) is the dominant term: it
+is the gap between what a finite training set taught the head and the family
+infimum. We measure it by refitting at several training fractions and
+extrapolating $\hat I(n)=I_\infty-a n^{-\alpha}$ with $\alpha\in[0.15,2]$, in the
+tradition of \citet{strong1998entropy} and \citet{panzeri2007correcting} but with
+a free exponent, because forcing $\alpha=1$ badly over-extrapolates the
+interaction terms that carry synergy.
+
+\paragraph{Variance.} Total estimator variance is decomposed into patient
+sampling and seed-to-seed variability; the latter accounted for
+\primarySeedShare\% of the total on the primary endpoint and is added to every
+interval. Differences (conditional gains, marginals, Shapley values) are computed
+pairwise per patient before averaging, which cancels the shared null term and the
+patient-level variance that dominates each component separately.
+
+% ===================================================================== %
+\section{Identification of the per-patient counterfactual}
+\label{sec:ident}
+
+$\Delta_i(m\mid S)$ asks what a test \emph{would have} shown for a patient. For
+patients who received the test this is an interpolation; for those who did not it
+is a counterfactual, identified under two conditions.
+
+\begin{proposition}[Identification]
+Let $O_m\in\{0,1\}$ indicate that $m$ was acquired. If
+(i) $X_m \perp O_m \mid X_S$ (missing at random given the observed context
+\citep{rubin1976inference}) and
+(ii) $0<\Prob(O_m=1\mid X_S=x)$ for almost every $x$ in the support (overlap),
+then $q(x_m\mid x^S)=p(x_m\mid x^S,O_m=1)$ and $\Delta_i$ is identified from the
+observed data.
+\end{proposition}
+
+Condition (ii) is checkable and we check it: a cross-validated propensity model
+for $O_m$ given the baseline context is fitted per modality, and the fraction of
+patients outside the region of common support is reported (Table~S5). Patients
+there are flagged rather than scored --- for them the counterfactual is an
+extrapolation, and reporting a number would be worse than reporting none.
+
+Condition (i) is not checkable, because it concerns the unobserved result. We
+therefore bound its consequences by simulation: the generator's
+\texttt{mnar\_strength} parameter makes ordering depend on latent factors that
+the model cannot see but the ordering clinician can, and the whole analysis is
+repeated. The bias has a consistent direction --- unmeasured indication inflates
+the apparent value of selectively-ordered tests --- which makes the reduction
+claim conservative: a policy fitted under MNAR orders more tests than are needed,
+not fewer.
+
+\paragraph{Consistency check.} By the tower property,
+$\E_i[\Delta_i(m\mid S)]$ and the retrospective realised gain
+$\E_i[\pvi_i(S\cup m)-\pvi_i(S)]$ estimate the same population quantity by
+completely different routes --- the first integrating over hypothetical results
+without using labels, the second using realised results and labels. Their
+agreement (Table~S4) is a joint test of the conditional sampler, the masked
+family and the cross-fitting, and is reported for every modality.
+
+% ===================================================================== %
+\section{Supplementary tables}
+
+\begin{table}[htbp]\centering\small
+\caption{Numerical certification of every theoretical claim
+(\texttt{python -m infogain.theory.verify}). ``Worst slack'' is the smallest
+margin by which the inequality held across all trials; negative values of order
+$10^{-13}$ reflect floating-point rounding at an equality case. All claims
+pass: \thyAllHold.}
+\label{tab:s-theory}
+\input{tables/theory_table}
+\end{table}
+
+\begin{table}[htbp]\centering\small
+\caption{Simulation study: estimated against exact information by cohort size,
+with the learning-curve-corrected estimate. Recovery approaches 100\% from
+below, as a computationally bounded quantity must.}
+\label{tab:s-recovery}
+\input{tables/recovery_table}
+\end{table}
+
+\begin{table}[htbp]\centering\small
+\caption{Regime recovery: true against estimated decomposition regime
+(redundant / synergistic / independent) per modality. Accuracy
+\simRegimeAccuracy\%.}
+\label{tab:s-regime}
+\input{tables/regime_table}
+\end{table}
+
+\begin{table}[htbp]\centering\small
+\caption{Prospective against retrospective per-patient gain. The two are
+computed by different routes and must agree in cohort mean by the tower
+property.}
+\label{tab:s-consistency}
+\input{tables/consistency_table}
+\end{table}
+
+\begin{table}[htbp]\centering\small
+\caption{Overlap diagnostics for the counterfactual. A propensity model that
+predicts ordering almost perfectly is a warning, not a success: it means there
+is a region of patient space where the test is never ordered.}
+\label{tab:s-overlap}
+\input{tables/overlap_table}
+\end{table}
+
+\begin{table}[htbp]\centering\small
+\caption{Full subset lattice of $\Vc$-usable information, with monotonicity
+diagnostics.}
+\label{tab:s-lattice}
+\input{tables/lattice_table}
+\end{table}
+
+\bibliographystyle{unsrtnat}
+\bibliography{refs}
+\end{document}
