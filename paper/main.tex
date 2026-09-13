@@ -29,6 +29,12 @@
 \graphicspath{{figures/}{../results/cohort_synthetic/mortality_30d/figures/}%
               {../results/simulation/figures/}}
 
+% Wide generated tables: shrink to the text block only when they overrun it.
+% The column count comes from the results, so "will it fit" cannot be settled
+% while writing the caption.
+\newcommand{\fittable}[1]{%
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{#1}}
+
 \newtheorem{theorem}{Theorem}
 \newtheorem{lemma}{Lemma}
 \newtheorem{proposition}{Proposition}
@@ -522,9 +528,13 @@ conditional expectation given $x_i$ is the gain, which is why the means agree,
 but for a rare endpoint the draw swamps the signal and it cannot rank patients
 however good the score is. The simulator settles this, because there the exact
 per-patient gain is available: at $n=\tgtN$ the correlation the \emph{exact}
-gain achieves against the retrospective quantity is at most \tgtCeilingMax,
-and our estimator scores at or near that ceiling for every modality
-(Supplementary Table~\ref{tab:s-targeting}). The near-zero entry measures the yardstick.
+gain achieves against the retrospective quantity is at most \tgtCeilingMax\ --
+\tgtLabsCeiling\ for the laboratory panel, \tgtCxrCeiling\ for the radiograph,
+indistinguishable from zero for the other two. Our estimator scores
+\tgtLabsRhoRetro\ and \tgtCxrRhoRetro\ against the same yardstick
+(Supplementary Table~\ref{tab:s-targeting}), so most of what there is to reach
+it reaches. The near-zero entry in the consistency table measures the yardstick,
+not the score.
 
 Against the exact gain the score does rank patients, for the modalities that
 have per-patient signal to rank: Spearman \tgtSignalRhoMin--\tgtSignalRhoMax\
@@ -867,7 +877,7 @@ redundant and synergistic bits. $p$ is a paired sign-flip permutation test on
 the conditional gain. The same pair of modalities changes regime between
 endpoints, which is the paper's central empirical observation.}
 \label{tab:decomposition}
-\input{tables/decomposition_table}
+\fittable{\input{tables/decomposition_table}}
 \end{table}
 
 \begin{table}[htbp]\centering\small
@@ -876,7 +886,7 @@ patient, cost, discrimination, and the information given up relative to testing
 everyone. The comparison that matters is against the risk-band heuristic at
 matched budget, not against the extremes.}
 \label{tab:policy}
-\input{tables/policy_table}
+\fittable{\input{tables/policy_table}}
 \end{table}
 
 % ===================================================================== %

@@ -11,6 +11,12 @@
 \graphicspath{{figures/}{../results/cohort_synthetic/mortality_30d/figures/}%
               {../results/simulation/figures/}}
 
+% Wide generated tables: shrink to the text block only when they overrun it, so
+% a table that fits keeps the body font. The column count is set by the results,
+% not by hand, so "will it fit" cannot be settled while writing the caption.
+\newcommand{\fittable}[1]{%
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{#1}}
+
 \newtheorem{theorem}{Theorem}
 \newtheorem{lemma}{Lemma}
 \newtheorem{proposition}{Proposition}
@@ -200,9 +206,12 @@ supremum over $t$ gives $D^+=\TV$.
 Two elementary identities drive both directions. Since $\E[\eta]=\pi$,
 \begin{equation}
 \label{eq:tv-eta}
-\TV(P_{X|1},P_{X|0})=\tfrac12\!\int\!|p_1-p_0| = \frac{\E|\eta-\pi|}{2\pi(1-\pi)},
-\qquad
-I(X;Y)=H(\pi)-\E[H(\eta)] = \E\big[\KL(\Ber(\eta)\,\|\,\Ber(\pi))\big].
+\begin{aligned}
+\TV(P_{X|1},P_{X|0}) &= \tfrac12\!\int\!|p_1-p_0|
+  = \frac{\E|\eta-\pi|}{2\pi(1-\pi)}, \\
+I(X;Y) &= H(\pi)-\E[H(\eta)]
+  = \E\big[\KL(\Ber(\eta)\,\|\,\Ber(\pi))\big].
+\end{aligned}
 \end{equation}
 The first follows from $p_1=\eta p/\pi$ and $p_0=(1-\eta)p/(1-\pi)$, giving
 $p_1-p_0=p(\eta-\pi)/(\pi(1-\pi))$; the second by expanding the $\KL$ and using
@@ -583,8 +592,12 @@ infimum, plus the residual optimisation gap.
 \end{proof}
 
 We instantiate $\mathfrak R_n$ by the norm-based bound of
-\citet{golowich2018size}, $\mathfrak R_n\le B\big(\prod_{l}\|W_l\|_F\big)
-\sqrt{2L\log 2}/\sqrt n$, computed from the trained weights. It is loose in
+\citet{golowich2018size},
+\[
+  \mathfrak R_n \;\le\; B\Big(\prod_{l}\|W_l\|_F\Big)
+  \frac{\sqrt{2L\log 2}}{\sqrt n},
+\]
+computed from the trained weights. It is loose in
 absolute terms, as all norm-based bounds are, but it is computable, monotone in
 the quantities weight decay controls, and it makes the upper side a checkable
 statement rather than an asymptotic gesture.
@@ -695,7 +708,7 @@ margin by which the inequality held across all trials; negative values of order
 $10^{-13}$ reflect floating-point rounding at an equality case. All claims
 pass: \thyAllHold.}
 \label{tab:s-theory}
-\input{tables/theory_table}
+\fittable{\input{tables/theory_table}}
 \end{table}
 
 \begin{table}[htbp]\centering\small
@@ -703,7 +716,7 @@ pass: \thyAllHold.}
 with the learning-curve-corrected estimate. Recovery approaches 100\% from
 below, as a computationally bounded quantity must.}
 \label{tab:s-recovery}
-\input{tables/recovery_table}
+\fittable{\input{tables/recovery_table}}
 \end{table}
 
 \begin{table}[htbp]\centering\small
@@ -712,7 +725,7 @@ below, as a computationally bounded quantity must.}
 at the largest cohort is \simRegimeAccuracy\%. Redundancy, a main effect, is
 recovered first; synergy, an interaction across two noisy read-outs, last.}
 \label{tab:s-regime}
-\input{tables/regime_table}
+\fittable{\input{tables/regime_table}}
 \end{table}
 
 \begin{table}[htbp]\centering\small
@@ -721,7 +734,7 @@ against the size of the effect being detected. This is the planning number: it
 says what it costs to be able to tell a redundant test from a synergistic one at
 a given effect size.}
 \label{tab:s-firstcorrect}
-\input{tables/regime_first_correct_table}
+\fittable{\input{tables/regime_first_correct_table}}
 \end{table}
 
 \begin{table}[htbp]\centering\small
@@ -729,7 +742,7 @@ a given effect size.}
 computed by different routes and must agree in cohort mean by the tower
 property.}
 \label{tab:s-consistency}
-\input{tables/consistency_table}
+\fittable{\input{tables/consistency_table}}
 \end{table}
 
 \begin{table}[htbp]\centering\small
@@ -737,14 +750,14 @@ property.}
 predicts ordering almost perfectly is a warning, not a success: it means there
 is a region of patient space where the test is never ordered.}
 \label{tab:s-overlap}
-\input{tables/overlap_table}
+\fittable{\input{tables/overlap_table}}
 \end{table}
 
 \begin{table}[htbp]\centering\small
 \caption{Full subset lattice of $\Vc$-usable information, with monotonicity
 diagnostics.}
 \label{tab:s-lattice}
-\input{tables/lattice_table}
+\fittable{\input{tables/lattice_table}}
 \end{table}
 
 \begin{table}[htbp]\centering\small
@@ -753,7 +766,7 @@ variant, which separates "not enough patients" from "not enough patients who had
 both tests". Recovery of the synergistic terms tracks \texttt{events with both},
 not \texttt{n}: an interaction can only be learned from the overlap.}
 \label{tab:s-power}
-\input{tables/power_table}
+\fittable{\input{tables/power_table}}
 \end{table}
 
 \begin{table}[htbp]\centering\small
@@ -763,7 +776,7 @@ $\IV$ estimates; it is here to separate ``hard for this family to reach'' from
 ``not present in the data''. It is subject to the same overlap constraint, which
 is the point.}
 \label{tab:s-tree}
-\input{tables/tree_reference_table}
+\fittable{\input{tables/tree_reference_table}}
 \end{table}
 
 \begin{table}[htbp]\centering\small
@@ -779,7 +792,7 @@ signal. ``Capture @10\%'' is the decision form: the share of the information an
 oracle would collect by testing the best tenth of patients that this ordering
 actually collects, with random ordering as the floor.}
 \label{tab:s-targeting}
-\input{tables/targeting_table}
+\fittable{\input{tables/targeting_table}}
 \end{table}
 
 % ===================================================================== %

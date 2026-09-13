@@ -35,12 +35,26 @@ def esc(s) -> str:
     return "".join(out)
 
 
+def esc_header(s) -> str:
+    """Escape a column heading, leaving balanced ``$...$`` spans as math.
+
+    Cells are data and are escaped without exception -- a claim string carrying
+    ``^`` would otherwise abort the build.  Headings are ours, and a column
+    called ``true $I_m$`` should typeset as the symbol rather than as five
+    literal characters, which is what full escaping gave.
+    """
+    parts = str(s).split("$")
+    if len(parts) % 2 == 0:          # unbalanced: not math, escape the lot
+        return esc(s)
+    return "".join(f"${p}$" if i % 2 else esc(p) for i, p in enumerate(parts))
+
+
 def to_tabular(df: pd.DataFrame, floatfmt: str = "%.4f",
                align: str | None = None) -> str:
     cols = list(df.columns)
     align = align or ("l" + "r" * (len(cols) - 1))
     lines = [r"\begin{tabular}{" + align + "}", r"\toprule",
-             " & ".join(r"\textbf{" + esc(c) + "}" for c in cols) + r" \\",
+             " & ".join(r"\textbf{" + esc_header(c) + "}" for c in cols) + r" \\",
              r"\midrule"]
     for _, row in df.iterrows():
         cells = []
@@ -164,9 +178,8 @@ def main() -> None:
                 "spearman_truth_vs_retro", "capture_at_10", "chance_at_10"]
         df = df[[c for c in keep if c in df.columns]]
         df.columns = ["modality", "true bits", "est bits",
-                      "$\\rho$ est vs truth", "$\\rho$ est vs retro",
-                      "$\\rho$ truth vs retro (ceiling)",
-                      "capture @10\\%", "chance @10\\%"][:len(df.columns)]
+                      "$\\rho$ vs truth", "$\\rho$ vs retro", "ceiling",
+                      "capture", "chance"][:len(df.columns)]
         write(df, out / "targeting_table.tex",
               align="l" + "r" * (len(df.columns) - 1))
     else:
