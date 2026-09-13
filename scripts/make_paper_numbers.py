@@ -65,6 +65,8 @@ REQUIRED = [
     "tgtSignalRhoMin", "tgtSignalRhoMax", "tgtSignalCaptureMin",
     "tgtSignalCaptureMax", "tgtSignalChanceMin", "tgtSignalChanceMax",
     "tgtCeilingMax", "tgtN",
+    "flipNPairs", "flipPairA", "flipPairB", "flipSynEndpoint", "flipRedEndpoint",
+    "flipSynBits", "flipRedBits",
     "permNPerm", "permFloor", "decEchoNullPMin",
     "thyWitnessResidual", "certTightenMin", "certTightenMax", "shapleyEffResidual",
     "redAvoidedMin", "redAvoidedMax",
@@ -351,6 +353,43 @@ def main() -> None:
             M.add("redAvoidedMin", f"{100 * min(avoided):.0f}")
             M.add("redAvoidedMax", f"{100 * max(avoided):.0f}")
 
+
+    # ---- pairs that change regime between endpoints --------------------- #
+    # This is what the section heading claims, so it must come from the data:
+    # a pair counts only if it is called redundant for one endpoint and
+    # synergistic for another, both with a confidence interval clear of zero.
+    maps = {}
+    for oc_dir in sorted((R / args.cohort_name).glob("*")):
+        im = load_csv(oc_dir / "tables" / "interaction_map.csv")
+        if im is not None:
+            maps[oc_dir.name] = im.assign(pair=im["a"] + "+" + im["b"])
+    flips = []
+    if maps:
+        pairs = set.intersection(*(set(m["pair"]) for m in maps.values()))
+        for pair in sorted(pairs):
+            byoc = {oc: m[m["pair"] == pair].iloc[0] for oc, m in maps.items()}
+            syn = [(oc, r) for oc, r in byoc.items() if r["regime"] == "synergistic"]
+            red = [(oc, r) for oc, r in byoc.items() if r["regime"] == "redundant"]
+            if syn and red:
+                flips.append((pair, max(syn, key=lambda kv: kv[1]["interaction_bits"]),
+                              min(red, key=lambda kv: kv[1]["interaction_bits"])))
+    M.add("flipNPairs", len(flips))
+    if flips:
+        pair, (oc_s, r_s), (oc_r, r_r) = flips[0]
+        pretty = {"labs": "laboratory panel", "ecg": "electrocardiogram",
+                  "cxr": "chest radiograph", "echo": "echocardiogram",
+                  "notes": "notes"}
+        a, b = pair.split("+")
+        M.add("flipPairA", pretty.get(a, a))
+        M.add("flipPairB", pretty.get(b, b))
+        ep = {"mortality_30d": "30-day mortality",
+              "hf_readmission_30d": "heart-failure readmission",
+              "aki_7d": "acute kidney injury",
+              "icu_transfer_48h": "ICU transfer"}
+        M.add("flipSynEndpoint", ep.get(oc_s, oc_s.replace("_", " ")))
+        M.add("flipRedEndpoint", ep.get(oc_r, oc_r.replace("_", " ")))
+        M.add("flipSynBits", _fmt(r_s["interaction_bits"], 4))
+        M.add("flipRedBits", _fmt(abs(r_r["interaction_bits"]), 4))
 
     # ---- per-patient targeting against exact truth ---------------------- #
     tg = load_csv(R / "simulation" / "tables" / "patient_targeting.csv")
