@@ -738,6 +738,27 @@ diagnostics.}
 \input{tables/lattice_table}
 \end{table}
 
+\begin{table}[htbp]\centering\small
+\caption{Architecture ablation. Two arms of the same family differing only in
+whether the head carries an explicit second-order term over the modality tokens.
+Without it, both synergistic modalities are reported as independent or
+redundant; with it, the regimes are recovered. Everything else -- encoders,
+masking, cross-fitting, training schedule -- is identical.}
+\label{tab:s-ablation}
+\input{tables/ablation_table}
+\end{table}
+
+\begin{table}[htbp]\centering\small
+\caption{Gradient-boosted-tree reference, establishing that the interaction is
+extractable from these features at all. The tree is not a member of $\Vc$ and
+its numbers are not $\IV$ estimates; it exists to separate ``the family cannot
+see it'' from ``it is not there''. The implied interaction is
+$I(\text{ecg,cxr}) - I(\text{ecg}) - I(\text{cxr}) + I(\text{baseline}) =
+\treeInteractionBits$ bits.}
+\label{tab:s-tree}
+\input{tables/tree_reference_table}
+\end{table}
+
 % ===================================================================== %
 \clearpage
 \section{Supplementary figures}

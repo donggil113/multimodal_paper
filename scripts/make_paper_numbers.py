@@ -42,6 +42,8 @@ REQUIRED = [
     "simRecoveryFloor", "simSubsetsScored", "simSubsetsBelowFloor",
     "simRecoveryFullPanel", "simMeanAbsErr", "simRegimeMaxN",
     "simSynergyFirstN", "simRedundancyFirstN",
+    "ablN", "ablRegimeFm", "ablRegimeNoFm", "ablRecoveredFm", "ablRecoveredNoFm",
+    "treeInteractionBits",
     "cohortN", "cohortSubjects", "cohortSource", "primaryPrevalence",
     "primaryBaselineBits", "primaryFullBits", "primaryBaselineAuroc",
     "primaryFullAuroc", "primaryNullGap", "primaryIdentityRelErr",
@@ -156,6 +158,13 @@ def main() -> None:
         M.add("simSynergyFirstN",
               f"{min(r['first_correct_n'] for r in syn):,}".replace(",", "{,}")
               if syn else None)
+        M.add("ablN", f"{sim.get('ablation_n', 0):,}".replace(",", "{,}")
+              if sim.get("ablation_n") else None)
+        M.add("ablRegimeFm", _pct(sim.get("ablation_regime_accuracy_fm"), 0))
+        M.add("ablRegimeNoFm", _pct(sim.get("ablation_regime_accuracy_nofm"), 0))
+        M.add("ablRecoveredFm", _pct(sim.get("ablation_recovered_fm"), 0))
+        M.add("ablRecoveredNoFm", _pct(sim.get("ablation_recovered_nofm"), 0))
+        M.add("treeInteractionBits", _fmt(sim.get("tree_interaction_bits"), 4))
         M.add("simRedundancyFirstN",
               f"{min(r['first_correct_n'] for r in red):,}".replace(",", "{,}")
               if red else None)

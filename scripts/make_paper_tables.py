@@ -132,6 +132,25 @@ def main() -> None:
     else:
         write(None, out / "regime_first_correct_table.tex")
 
+    # architecture ablation
+    ab = R / "simulation" / "tables" / "architecture_ablation.csv"
+    if ab.exists():
+        df = pd.read_csv(ab)
+        keep = ["use_fm", "modality", "true_marginal", "est_marginal",
+                "true_conditional", "est_conditional", "true_regime", "est_regime",
+                "regime_correct"]
+        df = df[[c for c in keep if c in df.columns]]
+        df.columns = [c.replace("_", " ") for c in df.columns]
+        write(df, out / "ablation_table.tex")
+    else:
+        write(None, out / "ablation_table.tex")
+
+    tr = R / "simulation" / "tables" / "tree_reference.csv"
+    if tr.exists():
+        write(pd.read_csv(tr), out / "tree_reference_table.tex", align="lrr")
+    else:
+        write(None, out / "tree_reference_table.tex")
+
     # S4 prospective vs retrospective
     cons = base / "tables" / "gain_consistency.csv"
     if cons.exists():

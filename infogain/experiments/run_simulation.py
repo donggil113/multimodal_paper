@@ -184,6 +184,86 @@ def first_correct_size(qual: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows).sort_values("true_effect_bits", ascending=False)
 
 
+def architecture_ablation(n: int = 18000, outcome: str = "mortality_30d",
+                          seed: int = 0, train: TrainConfig | None = None
+                          ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    r"""Can the predictive family represent an interaction, and does it matter?
+
+    Synergistic information is by definition an interaction between modalities.
+    A head with no multiplicative path between two modality embeddings cannot
+    express one, so it will report synergy as absent *at every sample size* --
+    and the failure looks exactly like "there is no synergy here", which is the
+    conclusion a study would draw.
+
+    Two arms of the same family differing only in
+    :attr:`~infogain.encoders.fusion.FamilyConfig.use_fm`, plus a
+    gradient-boosted-tree reference that establishes the information is
+    extractable at all. The tree is not part of :math:`\mathcal V` and its number
+    is not an :math:`I_{\mathcal V}`; it is there to separate "the family cannot
+    see it" from "it is not there".
+    """
+    from sklearn.ensemble import HistGradientBoostingClassifier
+    from sklearn.model_selection import cross_val_predict
+
+    from infogain.encoders.fusion import FamilyConfig
+    from infogain.theory.lemmas import auroc, entropy_bits
+
+    train = train or TrainConfig(epochs=130, n_folds=4, seeds=(0, 1), patience=18)
+    cohort, gt = generate(n=n, seed=seed)
+    truth = ground_truth_table(gt, outcome, baseline=sorted(cohort.spec.baseline),
+                               respect_observation=True).set_index("modality")
+    full = frozenset(cohort.spec.names)
+
+    rows = []
+    for use_fm in (True, False):
+        cfg = TrainConfig(**{**train.__dict__,
+                             "family": FamilyConfig(**{**train.family.__dict__,
+                                                       "use_fm": use_fm})})
+        t0 = time.time()
+        cf = fit_family(cohort, outcome, cfg)
+        log.info("ablation use_fm=%s fitted in %.0fs", use_fm, time.time() - t0)
+        est = decomposition_table(cf, n_perm=1).set_index("modality")
+        i_full = float(cf.pvi(full).mean())
+        i_true = gt.information(outcome, set(full), respect_observation=True)
+        for m in est.index:
+            if m not in truth.index:
+                continue
+            t, e = truth.loc[m], est.loc[m]
+            rows.append({
+                "use_fm": use_fm, "modality": m, "n": n,
+                "true_marginal": t["marginal"], "est_marginal": e["marginal_bits"],
+                "true_conditional": t["conditional"],
+                "est_conditional": e["conditional_bits"],
+                "true_regime": regime_of(t["marginal"], t["conditional"]),
+                "est_regime": regime_of(e["marginal_bits"], e["conditional_bits"]),
+                "i_full_est": i_full, "i_full_true": i_true,
+                "i_full_recovered": i_full / max(i_true, 1e-9)})
+    abl = pd.DataFrame(rows)
+    abl["regime_correct"] = abl["true_regime"] == abl["est_regime"]
+
+    # tree reference: is the interaction extractable from these features at all?
+    def h(q):
+        q = np.clip(q, 1e-9, 1 - 1e-9)
+        return -(q * np.log2(q) + (1 - q) * np.log2(1 - q))
+
+    y = gt.y[outcome]
+    base_x = np.hstack([gt.X[m] for m in sorted(cohort.spec.baseline)])
+    ref = []
+    for name, extra in (("baseline", []), ("baseline+ecg", ["ecg"]),
+                        ("baseline+cxr", ["cxr"]), ("baseline+ecg+cxr", ["ecg", "cxr"])):
+        feats = np.hstack([base_x] + [gt.X[m] for m in extra])
+        model = HistGradientBoostingClassifier(max_iter=250, learning_rate=0.08,
+                                               random_state=seed)
+        pr = cross_val_predict(model, feats, y, cv=4, method="predict_proba")[:, 1]
+        ref.append({"features": name, "auroc": float(auroc(y, pr)),
+                    "bits": float(entropy_bits(float(y.mean())) - np.mean(h(pr)))})
+    ref_df = pd.DataFrame(ref)
+    b = dict(zip(ref_df["features"], ref_df["bits"]))
+    ref_df.attrs["interaction_bits"] = (b["baseline+ecg+cxr"] - b["baseline+ecg"]
+                                        - b["baseline+cxr"] + b["baseline"])
+    return abl, ref_df
+
+
 def theorem_study_exact(n: int = 60000, outcome: str = "mortality_30d",
                         seed: int = 0) -> dict:
     """Check Theorems 1-3 against *exact* posteriors from the simulator."""
@@ -238,7 +318,9 @@ RECOVERY_FLOOR_BITS = 0.01
 
 def summarize(rec: pd.DataFrame, qual: pd.DataFrame, thm: dict,
               sizes: tuple[int, ...], outcome: str,
-              floor: float = RECOVERY_FLOOR_BITS) -> dict:
+              floor: float = RECOVERY_FLOOR_BITS,
+              abl: pd.DataFrame | None = None,
+              ref: pd.DataFrame | None = None) -> dict:
     """Assemble the simulation summary, guarding the near-zero-truth subsets."""
     big = rec[rec["n"] == max(sizes)]
     ok = big[big["truth_bits"] >= floor]
@@ -256,6 +338,18 @@ def summarize(rec: pd.DataFrame, qual: pd.DataFrame, thm: dict,
         "mean_abs_error_bits": float((big["est_bits"] - big["truth_bits"]).abs().mean()),
         "regime_accuracy": float(
             qual[qual["n"] == qual["n"].max()]["regime_correct"].mean()),
+        **({} if abl is None else {
+            "ablation_n": int(abl["n"].iloc[0]),
+            "ablation_regime_accuracy_fm": float(
+                abl[abl["use_fm"]]["regime_correct"].mean()),
+            "ablation_regime_accuracy_nofm": float(
+                abl[~abl["use_fm"]]["regime_correct"].mean()),
+            "ablation_recovered_fm": float(abl[abl["use_fm"]]["i_full_recovered"].iloc[0]),
+            "ablation_recovered_nofm": float(
+                abl[~abl["use_fm"]]["i_full_recovered"].iloc[0]),
+            "tree_interaction_bits": float(ref.attrs["interaction_bits"]),
+            "tree_reference": ref.to_dict("records"),
+        }),
         "regime_accuracy_by_size": regime_accuracy_by_size(qual).to_dict("records"),
         "regime_first_correct": first_correct_size(qual).to_dict("records"),
         "regime_max_n": int(qual["n"].max()),
@@ -276,7 +370,15 @@ def rebuild_summary(out: Path, outcome: str) -> dict:
            "theorem3": json.loads((out / "summary.json").read_text()).get("theorem3", {})
            if (out / "summary.json").exists() else {}}
     sizes = tuple(sorted(rec["n"].unique()))
-    summary = summarize(rec, qual, thm, sizes, outcome)
+    abl_p = out / "tables" / "architecture_ablation.csv"
+    ref_p = out / "tables" / "tree_reference.csv"
+    abl = pd.read_csv(abl_p) if abl_p.exists() else None
+    ref = pd.read_csv(ref_p) if ref_p.exists() else None
+    if ref is not None:
+        b = dict(zip(ref["features"], ref["bits"]))
+        ref.attrs["interaction_bits"] = (b["baseline+ecg+cxr"] - b["baseline+ecg"]
+                                         - b["baseline+cxr"] + b["baseline"])
+    summary = summarize(rec, qual, thm, sizes, outcome, abl=abl, ref=ref)
     save_json(summary, out / "summary.json")
     return summary
 
@@ -287,6 +389,7 @@ def main() -> None:  # pragma: no cover - CLI
     ap.add_argument("--outcome", default="mortality_30d")
     ap.add_argument("--sizes", default="4000,12000,36000")
     ap.add_argument("--qual-sizes", default="6000,18000,50000")
+    ap.add_argument("--abl-n", type=int, default=18000)
     ap.add_argument("--exact-n", type=int, default=60000)
     ap.add_argument("--epochs", type=int, default=110)
     ap.add_argument("--folds", type=int, default=4)
@@ -313,7 +416,7 @@ def main() -> None:  # pragma: no cover - CLI
     if args.quick:
         sizes = (2000, 5000, 10000)
         train = TrainConfig(epochs=25, n_folds=3, seeds=(0,), patience=8, min_epochs=8)
-        args.qual_sizes, args.exact_n = "2000,5000", 15000
+        args.qual_sizes, args.exact_n, args.abl_n = "2000,5000", 15000, 4000
 
     log.info("== recovery study ==")
     rec = add_extrapolation(recovery_study(sizes, args.outcome, args.seed, train))
@@ -326,6 +429,11 @@ def main() -> None:  # pragma: no cover - CLI
     regime_accuracy_by_size(qual).to_csv(out / "tables" / "regime_by_size.csv", index=False)
     first_correct_size(qual).to_csv(out / "tables" / "regime_first_correct.csv", index=False)
 
+    log.info("== architecture ablation ==")
+    abl, ref = architecture_ablation(args.abl_n, args.outcome, args.seed, train)
+    abl.to_csv(out / "tables" / "architecture_ablation.csv", index=False)
+    ref.to_csv(out / "tables" / "tree_reference.csv", index=False)
+
     log.info("== exact theorem checks ==")
     thm = theorem_study_exact(args.exact_n, args.outcome, args.seed)
     pd.DataFrame(thm["theorem1"]).to_csv(out / "tables" / "exact_theorem1.csv", index=False)
@@ -337,7 +445,7 @@ def main() -> None:  # pragma: no cover - CLI
                                "simulation: recovering the decomposition's sign"),
          out / "figures" / "figS2_regime", table=qual)
 
-    summary = summarize(rec, qual, thm, sizes, args.outcome)
+    summary = summarize(rec, qual, thm, sizes, args.outcome, abl=abl, ref=ref)
     save_json(summary, out / "summary.json")
     print(rec.to_string(index=False))
     print("\n", qual.round(4).to_string(index=False))
