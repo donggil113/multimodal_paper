@@ -26,7 +26,7 @@ analysis:  ## main analysis for the primary endpoint
 	$(PY) -m infogain.experiments.run_cohort --cohort data/$(COHORT) \
 	  --outcome $(PRIMARY) --out $(RESULTS)/$(COHORT)/$(PRIMARY)
 
-all:  ## everything the paper reports (~2 h on 4 cores)
+all:  ## everything the paper reports (~4 h on 4 cores)
 	$(PY) scripts/run_all.py
 
 paper:  ## regenerate numbers and tables, then build both PDFs
