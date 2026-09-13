@@ -39,6 +39,7 @@ from infogain.clinical.net_benefit import (
     bayes_value, check_identity, information_gain_nats, safe_omission_bound_local,
 )
 from infogain.data.synthetic import default_design, generate, ground_truth_table
+from infogain.encoders.fusion import FamilyConfig
 from infogain.encoders.train import TrainConfig, fit_family
 from infogain.theory.lemmas import auroc, auroc_hull, best_stratified_bound
 from infogain.utils.io import save_json
@@ -426,6 +427,76 @@ def rebuild_summary(out: Path, outcome: str) -> dict:
     return summary
 
 
+def architecture_ablation(n: int = 50000, outcome: str = "mortality_30d",
+                          seed: int = 0,
+                          train: TrainConfig | None = None) -> pd.DataFrame:
+    r"""Does the fusion head's interaction machinery earn its place?
+
+    Two claims in this codebase were never isolated, and both are about the
+    predictor family rather than the data.  The manuscript says of the
+    factorization-machine term that "it was introduced together with a change to
+    the training-mask distribution, and we report the pair rather than attribute
+    the effect to either".  :class:`FamilyConfig` separately asserts that
+    attention "recovers roughly twice as much of the known synergy" as plain
+    concatenation.  Neither survives as an assertion: this crosses the two
+    switches at fixed data, fixed folds and fixed seeds, so whatever difference
+    there is belongs to the architecture and nothing else.
+
+    Recovery is reported against the simulator's exact conditional gains for the
+    modalities whose true regime is synergistic, because that is the quantity
+    both claims are about.  Because :math:`I_\mathcal{V}` is an infimum over the
+    family, a weaker head can only *under*-report: the comparison bears on how
+    tight the estimate is, never on whether it is valid.
+    """
+    from dataclasses import replace
+
+    train = train or TrainConfig(epochs=130, n_folds=4, seeds=(0, 1), patience=18)
+    cohort, gt = generate(n=n, seed=seed)
+    base, full = cohort.spec.baseline, frozenset(cohort.spec.names)
+    truth = ground_truth_table(gt, outcome, baseline=sorted(base),
+                               respect_observation=True).set_index("modality")
+    y = cohort.y(outcome)
+    both = (cohort.blocks["ecg"].observed & cohort.blocks["cxr"].observed)
+
+    rows = []
+    for fusion in ("attention", "concat"):
+        for use_fm in (True, False):
+            cfg = replace(train.family if train.family else FamilyConfig(),
+                          fusion=fusion, use_fm=use_fm)
+            t0 = time.time()
+            cf = fit_family(cohort, outcome, replace(train, family=cfg))
+            secs = time.time() - t0
+            log.info("ablation fusion=%s use_fm=%s fitted in %.0fs",
+                     fusion, use_fm, secs)
+            est = decomposition_table(cf, n_perm=1).set_index("modality")
+            for m in est.index:
+                if m not in truth.index:
+                    continue
+                t, e = truth.loc[m], est.loc[m]
+                rows.append({
+                    "fusion": fusion, "use_fm": use_fm, "modality": m,
+                    "true_regime": regime_of(t["marginal"], t["conditional"]),
+                    "est_regime": regime_of(e["marginal_bits"], e["conditional_bits"]),
+                    "true_conditional": t["conditional"],
+                    "est_conditional": e["conditional_bits"],
+                    "i_full_est": float(cf.pvi(full).mean()),
+                    "fit_seconds": secs, "n": n,
+                    "events_with_both": int((y * both).sum()),
+                })
+    out = pd.DataFrame(rows)
+    out["regime_correct"] = out["true_regime"] == out["est_regime"]
+    # the headline: share of the known synergistic conditional gain recovered
+    syn = out[out["true_regime"] == "synergistic"]
+    if not syn.empty:
+        share = (syn.groupby(["fusion", "use_fm"])
+                 .apply(lambda g: g["est_conditional"].sum()
+                        / max(g["true_conditional"].sum(), 1e-12),
+                        include_groups=False)
+                 .rename("syn_recovered"))
+        out = out.merge(share.reset_index(), on=["fusion", "use_fm"], how="left")
+    return out
+
+
 def patient_targeting_study(n: int = 50000, outcome: str = "mortality_30d",
                             epochs: int = 130, folds: int = 4,
                             seeds: tuple[int, ...] = (0, 1),
@@ -510,6 +581,10 @@ def main() -> None:  # pragma: no cover - CLI
                     help="recompute summary.json from saved tables, no refitting")
     ap.add_argument("--targeting-n", type=int, default=50000,
                     help="cohort size for the per-patient targeting study")
+    ap.add_argument("--ablation-only", action="store_true",
+                    help="run only the fusion-architecture ablation and exit")
+    ap.add_argument("--ablation-n", type=int, default=50000,
+                    help="cohort size for the architecture ablation")
     ap.add_argument("--targeting-only", action="store_true",
                     help="run only the per-patient targeting study and exit; it "
                          "needs one family fit rather than the whole grid")
@@ -535,6 +610,13 @@ def main() -> None:  # pragma: no cover - CLI
         args.power_sizes = "4000"
         args.epochs, args.folds, args.seeds = 25, 3, 1
         args.targeting_n = 4000
+        args.ablation_n = 4000
+
+    if args.ablation_only:
+        abl = architecture_ablation(args.ablation_n, args.outcome, args.seed, train)
+        abl.to_csv(out / "tables" / "architecture_ablation.csv", index=False)
+        print(abl.round(4).to_string(index=False))
+        return
 
     if args.targeting_only:
         tgt = patient_targeting_study(args.targeting_n, args.outcome, args.epochs,
