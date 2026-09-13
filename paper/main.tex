@@ -91,15 +91,18 @@ learning-curve extrapolation, and validate the whole pipeline against a
 generative model in which the true decomposition is known in closed form -- which
 also shows what governs whether synergy is visible at all: not the cohort size
 but the number of events for which both modalities were acquired, a quantity no
-multimodal study reports. On linked MIMIC-IV records -- electrocardiograms, chest radiographs, laboratory
-panels and notes for the same patients -- the same pair of modalities is
-redundant for one endpoint and synergistic for another, and the benefit of any
-given test is concentrated in a minority of patients (Gini
-\gainMaxGini). Ordering tests by patient-level expected information gain reaches
-the discrimination of testing everyone while ordering \redTestsAvoided\% fewer
-tests, with a certified net-benefit loss below \redCertifiedLoss. The framework
-converts ``which test should this patient get next'' from a habit into a
-computation.
+multimodal study reports. Applied to a cohort of \cohortN\ encounters with
+electrocardiograms, chest radiographs, laboratory panels and notes for the same
+patients, across four endpoints, the same pair of modalities is redundant for
+one and synergistic for another, and the benefit of any given test is
+concentrated in a minority of patients (Gini \gainMaxGini). Ordering tests by
+patient-level expected information gain reaches the discrimination of testing
+everyone while ordering \redTestsAvoided\% fewer tests, with a certified
+net-benefit loss below \redCertifiedLoss. The reported cohort is the calibrated
+simulator, not MIMIC-IV: the extraction targets linked MIMIC-IV records and runs
+through the identical code path, but requires credentialed access we do not yet
+hold (see Data status). The framework converts ``which test should this patient
+get next'' from a habit into a computation.
 \end{abstract}
 
 \paragraph{Data status.}
@@ -565,12 +568,26 @@ of estimable quantities rather than solutions to an underdetermined axiom system
 Second, the restricted usable information $I^{[a,b]}$ is, we think, the quantity
 that information-theoretic analyses of clinical data should report. Total mutual
 information counts bits earned at thresholds no clinician acts on, and the
-discrepancy is large -- here, most of the total. Third, the safe-omission
+discrepancy is not a fixed overhead one could correct for: across our four
+endpoints the redeemable share ranges from \restrictedShareMin\% to
+\restrictedShareMax\%, and nothing in an unrestricted bit count says which end
+of that range it sits at. Third, the safe-omission
 certificate inverts the usual burden of proof: instead of demonstrating that a
 reduced policy performed acceptably in one retrospective sample, it bounds what
 the reduction could cost, a statement that survives the sample.
 
-\paragraph{Limitations.} $\Vc$-information is relative to the predictor family
+\paragraph{Limitations.} The first limitation is the data. Every number
+reported here comes from the calibrated simulator of Methods~\ref{sec:sim}, not
+from patients. That design lets us check the estimator against a decomposition
+known in closed form -- which is how we established that overlap rather than
+cohort size governs whether synergy is visible, a result the real data could not
+have given us -- but it means the clinical findings below are properties of a
+model we wrote. Which modality is redundant for which endpoint, and how much
+testing can be avoided, are empirical claims that the MIMIC-IV extraction will
+settle and this manuscript does not. What the simulator does establish is that
+the machinery recovers the right answer when the right answer is known.
+
+$\Vc$-information is relative to the predictor family
 and the sample size; a stronger encoder or a larger cohort raises it, and
 reporting the family is part of reporting the number. We give the learning-curve
 extrapolation and the two-sided finite-sample bracket (Supplementary~\S6) so that
@@ -587,9 +604,9 @@ the cohort size, so a study whose acquisition rates leave a small overlap will
 report a synergistic test as independent. The error is conservative -- it
 understates a test's value rather than overstating it, and so cannot manufacture
 a reduction that is not there -- but it is an error, and Supplementary
-Tables~S4 and~S7 give the sample sizes involved. MIMIC-IV is a single academic centre in one
-country, its test-ordering culture is its own, and the cost figures are US list
-prices; the frontier is therefore reported in full so that a reader with a
+Tables~S4 and~S7 give the sample sizes involved. MIMIC-IV, the target cohort, is
+a single academic centre in one country, its test-ordering culture is its own,
+and the cost figures are US list prices; the frontier is therefore reported in full so that a reader with a
 different fee schedule can read off their own operating point. Finally, a
 retrospective simulation of a testing policy is not a trial. The certificate in
 Theorem~\ref{thm:omit} bounds the information-theoretic cost of omission, not
