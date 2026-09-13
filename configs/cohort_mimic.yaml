@@ -15,13 +15,28 @@ endpoints:
   - aki_7d
   - icu_transfer_48h
 
-# Temporal gating. Nothing acquired after the index time may enter the features.
+# Temporal gating.
+#
+# Context modalities (vitals, medications, prior notes) must come strictly
+# before the index time: they are what the clinician already has.
+#
+# Orderable modalities are the tests being scored, and they are by definition
+# acquired *after* the decision to order them -- an ED electrocardiogram happens
+# minutes to hours after registration. They may therefore land inside
+# (0, acquisition_hours]. A strict zero look-ahead would exclude every candidate
+# test and quietly turn the analysis into an analysis of nothing.
+#
+# To keep that from leaking, every index-anchored outcome clock starts at the
+# END of the acquisition window: with these settings, "ICU transfer within 48 h"
+# means between 6 and 54 hours after registration.
+#
 # `allow_discharge_summary` must stay false for any endpoint anchored at
 # admission: a discharge summary written days later is the single largest
 # leakage source in multimodal MIMIC work.
 policy:
   lookback_hours: 24
-  lookahead_hours: 0
+  acquisition_hours: 6
+  orderable: [labs, ecg, cxr, echo]
   lab_lookback_hours: 24
   ecg_lookback_hours: 24
   cxr_lookback_hours: 24

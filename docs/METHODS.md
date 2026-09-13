@@ -85,9 +85,22 @@ the lattice is 2^|M|.
 
 **Add an endpoint.** Add a function to `infogain/data/outcomes.py` returning a
 float Series with `NaN` for non-evaluable rows, and list it in
-`CohortConfig.endpoints`. Check the index anchor: an endpoint measured from
-discharge (readmission) needs `index_anchor="discharge"` and may legitimately use
-discharge summaries; one measured from admission must not.
+`CohortConfig.endpoints`. Two things to get right. The index anchor: an endpoint
+measured from discharge (readmission) needs `index_anchor="discharge"` and may
+legitimately use discharge summaries; one measured from admission must not. And
+the offset: an index-anchored endpoint must accept `offset_hours` and start its
+clock there, or a test acquired inside the acquisition window will be allowed to
+"predict" an event that preceded it.
+
+**The acquisition window is the subtle part.** Context data must precede the
+index; the tests being *scored* necessarily follow it, because ordering them is
+the decision under study. `TemporalPolicy.acquisition_hours` (default 6 h) is
+the window in which a candidate result may land, and
+`outcome_offset_hours()` is what every index-anchored outcome must be delayed
+by. Setting the look-ahead to zero instead — the intuitive reading of "no future
+data" — excludes every candidate test and produces an analysis of nothing, with
+no error. `tests/test_mimic_pipeline.py::test_every_modality_actually_populated`
+exists because that is exactly what happened here.
 
 **Swap in a foundation-model encoder.** Compute per-study embeddings with
 whatever encoder you trust, save as `.npz` with `study_id` and `embedding`, and

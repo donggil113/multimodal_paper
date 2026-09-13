@@ -546,10 +546,24 @@ linked by \texttt{subject\_id} across MIMIC-IV-ECG \citep{gow2023mimicecg},
 MIMIC-CXR-JPG \citep{johnson2019mimiccxr}, MIMIC-IV-Note
 \citep{johnson2023mimicnote} and, where present, MIMIC-IV-ED.
 
-Nothing acquired after the index time may enter the features. This is enforced by
-an explicit temporal policy object recorded in the cohort metadata, with
-per-modality look-back windows (24\,h for laboratory, electrocardiogram,
-radiograph and notes; 168\,h for prior prescriptions) and a look-ahead of zero.
+Temporal gating is enforced by an explicit policy object recorded in the cohort
+metadata, and it has to distinguish two roles that a naive ``nothing after the
+index time'' rule conflates. \emph{Context} modalities -- demographics, vital
+signs, prior medications, prior notes -- must precede the index time; they are
+what the clinician already holds. The \emph{orderable} modalities being scored,
+however, are by definition acquired \emph{after} the decision to order them: an
+electrocardiogram requested in the emergency department is performed minutes to
+hours after registration. A strict zero look-ahead therefore excludes every
+candidate test and silently turns the analysis into an analysis of nothing --
+which is what it did until a dry-run test on synthetic MIMIC-shaped files caught
+it. Orderable modalities may be acquired within a 6-hour window after the index,
+and to keep that from leaking, every index-anchored outcome clock starts at the
+\emph{end} of that window: ``ICU transfer within 48\,h'' means between 6 and 54
+hours after registration, and a transfer during the acquisition window makes the
+encounter non-evaluable rather than a positive. Look-back windows are 24\,h for
+laboratory, electrocardiogram, radiograph and notes, and 168\,h for prior
+prescriptions.
+
 Discharge summaries are excluded for every endpoint anchored at admission; they
 are written days later and are the single largest leakage source in multimodal
 MIMIC work. Splits are grouped by patient, never by encounter, and the primary

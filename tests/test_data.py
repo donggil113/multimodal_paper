@@ -150,18 +150,52 @@ def test_lab_itemid_resolution_prefers_the_dictionary():
     assert m["lactate"]  # falls back to the hard-coded hint
 
 
-def test_extract_labs_respects_the_index_window():
+def test_extract_labs_respects_the_acquisition_window():
+    """Labs are orderable, so a result inside the acquisition window counts."""
     T = pd.Timestamp("2150-01-01 12:00")
     index = pd.DataFrame([{"hadm_id": 1, "index_time": T}])
+    policy = TemporalPolicy(acquisition_hours=6.0)
     ev = pd.DataFrame([
         {"hadm_id": 1, "itemid": 50912, "charttime": T - pd.Timedelta(hours=2), "valuenum": 1.4},
-        # after the index: must be excluded
-        {"hadm_id": 1, "itemid": 50912, "charttime": T + pd.Timedelta(hours=2), "valuenum": 9.9},
+        {"hadm_id": 1, "itemid": 50912, "charttime": T + pd.Timedelta(hours=2), "valuenum": 2.2},
+        # beyond the acquisition window: must be excluded
+        {"hadm_id": 1, "itemid": 50912, "charttime": T + pd.Timedelta(hours=20), "valuenum": 9.9},
     ])
-    blk = extract_labs(index, ev, {"creatinine": [50912]}, TemporalPolicy())
+    blk = extract_labs(index, ev, {"creatinine": [50912]}, policy)
     j = blk.feature_names.index("lab_creatinine")
-    assert blk.values[0, j] == pytest.approx(1.4)
+    assert blk.values[0, j] == pytest.approx(2.2)     # last inside the window
     assert blk.values[0, j + 1] == 1.0
+
+
+def test_context_modalities_cannot_use_the_acquisition_window():
+    """Medications are context, so nothing after the index may enter."""
+    T = pd.Timestamp("2150-01-01 12:00")
+    index = pd.DataFrame([{"hadm_id": 1, "index_time": T}])
+    policy = TemporalPolicy(acquisition_hours=6.0)
+    assert policy.window("meds")[1] == 0.0
+    assert policy.window("labs")[1] == 6.0
+    rx = pd.DataFrame([{"hadm_id": 1, "drug": "Furosemide",
+                        "starttime": T + pd.Timedelta(hours=2)}])
+    blk = extract_meds(index, rx, policy)
+    assert blk.values[0, blk.feature_names.index("med_loop_diuretic")] == 0.0
+
+
+def test_outcome_clock_starts_after_the_acquisition_window():
+    """A transfer during the acquisition window is not a prediction target."""
+    T = pd.Timestamp("2150-01-01 12:00")
+    index = pd.DataFrame([{"hadm_id": 1, "index_time": T},
+                          {"hadm_id": 2, "index_time": T}])
+    transfers = pd.DataFrame([
+        # inside the acquisition window -> already in ICU when the clock starts
+        {"subject_id": 1, "hadm_id": 1, "careunit": "MICU",
+         "intime": T + pd.Timedelta(hours=3), "outtime": T + pd.Timedelta(days=3)},
+        # after it -> a genuine event
+        {"subject_id": 2, "hadm_id": 2, "careunit": "MICU",
+         "intime": T + pd.Timedelta(hours=20), "outtime": T + pd.Timedelta(days=3)},
+    ])
+    out = oc.icu_transfer(index, transfers, 48.0, offset_hours=6.0)
+    assert np.isnan(out.iloc[0])
+    assert out.iloc[1] == 1.0
 
 
 def test_extract_labs_marks_unmeasured():

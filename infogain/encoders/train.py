@@ -256,8 +256,22 @@ def fit_family(cohort, outcome: str, cfg: TrainConfig | None = None,
              outcome, n, 100 * y.mean(), len(subsets), cfg.n_folds, len(cfg.seeds))
 
     dims = {m: cohort.blocks[m].dim for m in names}
+    # Concentrate the focus branch on the subsets the decomposition actually
+    # reads -- the full panel, each leave-one-out set, the baseline, and each
+    # baseline-plus-one -- rather than spreading it uniformly over the whole
+    # lattice. Conditional gains are differences between the full panel and a
+    # leave-one-out set, so those two are the fits that have to be good; giving
+    # a specific 5-of-6 mask ~2% of training (what uniform Bernoulli dropout
+    # amounts to) is not enough to learn a cross-modality interaction, which is
+    # where synergistic information lives.
+    full = frozenset(names)
+    orderable = [m for m in names if m not in baseline]
+    focus = [full] + [full - {m} for m in orderable]
+    focus += [frozenset(baseline)] + [frozenset(baseline) | {m} for m in orderable]
+    focus = [f for f in focus if f and f in set(subsets)]
     sampler = MaskSampler(names=names, always_available=frozenset(baseline),
-                          focus_subsets=[s for s in subsets if s])
+                          focus_subsets=focus or [s for s in subsets if s],
+                          p_focus=0.40)
 
     probs = {subset_key(s): np.zeros((len(cfg.seeds), n), dtype=np.float64)
              for s in subsets}

@@ -148,7 +148,7 @@ def theorem_study_exact(n: int = 60000, outcome: str = "mortality_30d",
     cohort, gt = generate(n=n, seed=seed)
     y = gt.y[outcome]
     base = sorted(cohort.spec.baseline)
-    full = set(cohort.spec.modalities)
+    full = set(cohort.spec.names)
     p_full = gt.posterior(outcome, full, respect_observation=False)
 
     thm1, thm2 = [], []
@@ -248,7 +248,10 @@ def main() -> None:  # pragma: no cover - CLI
     out = Path(args.out)
     if args.rebuild_summary:
         s = rebuild_summary(out, args.outcome)
-        print(json.dumps({k: v for k, v in s.items() if k != "regime_table"}, indent=2))
+        from infogain.utils.io import NumpyJSONEncoder
+
+        print(json.dumps({k: v for k, v in s.items() if k != "regime_table"},
+                         indent=2, cls=NumpyJSONEncoder))
         return
     (out / "tables").mkdir(parents=True, exist_ok=True)
     (out / "figures").mkdir(parents=True, exist_ok=True)
