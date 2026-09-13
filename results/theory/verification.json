@@ -9,7 +9,14 @@
       "holds": true
     },
     {
-      "name": "I >= 2 pi (1-pi) TV^2",
+      "name": "I >= 8 pi^2 (1-pi)^2 TV^2 (proved)",
+      "n_trials": 20000,
+      "worst_slack": 3.253466603090291e-14,
+      "violated": 0,
+      "holds": true
+    },
+    {
+      "name": "I >= 2 pi (1-pi) TV^2 (sharper, numerical only)",
       "n_trials": 20000,
       "worst_slack": 3.25346660309029e-14,
       "violated": 0,
@@ -53,14 +60,21 @@
     {
       "name": "Thm1 bound <= achievable gain",
       "n_trials": 200,
-      "worst_slack": 0.0013573142689912165,
+      "worst_slack": 0.0019204577523258548,
+      "violated": 0,
+      "holds": true
+    },
+    {
+      "name": "Thm1 witness identity (bound == lex gain)",
+      "n_trials": 200,
+      "worst_slack": -6.461844948013606e-17,
       "violated": 0,
       "holds": true
     },
     {
       "name": "Thm1 bound informative (>0.005 AUROC)",
       "n_trials": 200,
-      "worst_slack": 0.915,
+      "worst_slack": 0.925,
       "violated": 0,
       "holds": true
     },

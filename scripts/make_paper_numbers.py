@@ -59,7 +59,8 @@ MODALITIES = ["Labs", "Ecg", "Cxr", "Echo", "Notes"]
 for _m in MODALITIES:
     REQUIRED += [f"dec{_m}Marginal", f"dec{_m}Conditional", f"dec{_m}Redundant",
                  f"dec{_m}Synergistic", f"dec{_m}RedFrac",
-                 f"gain{_m}Mean", f"gain{_m}PNinetynine", f"gain{_m}Gini"]
+                 f"gain{_m}Mean", f"gain{_m}PNinetynine", f"gain{_m}Gini",
+                 f"gain{_m}Concentration"]
 
 
 class Macros:
@@ -201,6 +202,9 @@ def main() -> None:
             M.add(f"gain{key}Mean", _fmt(g["mean_bits"], 4))
             M.add(f"gain{key}PNinetynine", _fmt(g["p99_bits"], 4))
             M.add(f"gain{key}Gini", _fmt(g["gini"], 2))
+            # the ratio, computed here rather than typeset as "a/b" in the text
+            M.add(f"gain{key}Concentration",
+                  _fmt(g["p99_bits"] / max(g["mean_bits"], 1e-12), 0))
         if gains:
             M.add("gainMaxGini", _fmt(max(g["gini"] for g in gains.values()), 2))
             M.add("gainMinGini", _fmt(min(g["gini"] for g in gains.values()), 2))

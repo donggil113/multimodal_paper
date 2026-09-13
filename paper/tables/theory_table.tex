@@ -3,14 +3,16 @@
 \textbf{claim} & \textbf{trials} & \textbf{worst slack} & \textbf{violations} & \textbf{holds} \\
 \midrule
 I \textless{}= H(pi) * TV & 20000 & 5.05e-14 & 0 & yes \\
-I \textgreater{}= 2 pi (1-pi) TV\textasciicircum{}2 & 20000 & 3.25e-14 & 0 & yes \\
+I \textgreater{}= 8 pi\textasciicircum{}2 (1-pi)\textasciicircum{}2 TV\textasciicircum{}2 (proved) & 20000 & 3.25e-14 & 0 & yes \\
+I \textgreater{}= 2 pi (1-pi) TV\textasciicircum{}2 (sharper, numerical only) & 20000 & 3.25e-14 & 0 & yes \\
 2A\_hull-1 \textgreater{}= D+ & 2000 & -2.08e-17 & 0 & yes \\
 2A-1 \textless{}= 2 D+ & 2000 & 1.02e-02 & 0 & yes \\
 Thm3 identity: dI = int dNB dt/t & 150 & -1.01e-05 & 0 & yes \\
 Thm2 global bound dominates dNB & 300 & 9.86e-03 & 0 & yes \\
 Thm2 local bound dominates dNB & 300 & 4.15e-03 & 0 & yes \\
-Thm1 bound \textless{}= achievable gain & 200 & 1.36e-03 & 0 & yes \\
-Thm1 bound informative (\textgreater{}0.005 AUROC) & 200 & 9.15e-01 & 0 & yes \\
+Thm1 bound \textless{}= achievable gain & 200 & 1.92e-03 & 0 & yes \\
+Thm1 witness identity (bound == lex gain) & 200 & -6.46e-17 & 0 & yes \\
+Thm1 bound informative (\textgreater{}0.005 AUROC) & 200 & 9.25e-01 & 0 & yes \\
 PVI recovers I(X;Y) (truth=0.17312, est=0.17146) & 400000 & -1.66e-03 & 0 & yes \\
 \bottomrule
 \end{tabular}
