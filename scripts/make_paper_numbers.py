@@ -61,6 +61,7 @@ REQUIRED = [
     "powMidAN", "powMidAEvents", "powMidARecovery",
     "powMidBN", "powMidBEvents", "powMidBRecovery",
     "acqLabs", "acqEcg", "acqCxr", "acqEcho",
+    "thyThmOneInformative", "exGlobalNb", "exLocalNb",
     "permNPerm", "permFloor", "decEchoNullPMin",
     "thyWitnessResidual", "certTightenMin", "certTightenMax", "shapleyEffResidual",
     "redAvoidedMin", "redAvoidedMax",
@@ -159,6 +160,9 @@ def main() -> None:
         pvi = next((k for k in reps if k.startswith("PVI recovers")), None)
         M.add("thyPviErr", f"{abs(reps[pvi]['worst_slack']):.1e}" if pvi else None)
         wit = reps.get("Thm1 witness identity (bound == lex gain)", {})
+        inf1 = reps.get("Thm1 bound informative (>0.005 AUROC)", {})
+        M.add("thyThmOneInformative", _pct(inf1.get("worst_slack"), 1)
+              if inf1.get("worst_slack") is not None else None)
         if wit.get("worst_slack") is not None:
             mant, exp = f"{abs(wit['worst_slack']):.0e}".split("e")
             M.add("thyWitnessResidual", rf"{mant}\times10^{{{int(exp)}}}")
@@ -344,7 +348,10 @@ def main() -> None:
 
 
     # ---- Theorem 2: how much the localised certificate buys ------------- #
-    from infogain.clinical.net_benefit import safe_omission_bound_global
+    from infogain.clinical.net_benefit import (safe_omission_bound_global,
+                                               safe_omission_bound_local)
+    M.add("exGlobalNb", _fmt(safe_omission_bound_global(0.05, 0.10), 3))
+    M.add("exLocalNb", _fmt(safe_omission_bound_local(0.05, 0.10), 3))
     ratios, effres = [], []
     for oc_dir in sorted((R / args.cohort_name).glob("*")):
         t2 = load_csv(oc_dir / "tables" / "theorem2_bounds.csv")

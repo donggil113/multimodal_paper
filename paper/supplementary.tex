@@ -332,10 +332,10 @@ and by localising to the strata inside which the ranking must change.
 \paragraph{Numerical verification.} The proof's content is the displayed
 \emph{identity} between the certified sum and the AUROC gain of the witness
 score $s_\lambda$, and that is what we check: across synergy-dominated
-simulations the two agreed to $5\times10^{-17}$, i.e.\ machine precision. The
+simulations the two agreed to $\thyWitnessResidual$, i.e.\ machine precision. The
 weaker implied inequality (bound $\le$ gain demonstrably achievable on the same
 rows) held with zero violations, and the bound was strictly informative
-($>0.005$ AUROC) in over 90\% of trials. On exact simulator posteriors it held
+($>0.005$ AUROC) in \thyThmOneInformative\% of trials. On exact simulator posteriors it held
 for every modality (\simThmOneHolds).
 
 \paragraph{Choosing the partition.} The theorem holds for any \emph{fixed}
@@ -485,7 +485,7 @@ $[\max(0,t_0-v),\min(1,t_0+v)]$ and therefore inherits that direction.
 Because $\nu$ blows up at small $t$, Theorem~\ref{thm:s-omit-local} is
 substantially tighter exactly where triage decisions live: at $t_0=0.10$ and
 $\varepsilon$ corresponding to $0.05$ bits, the global bound gives
-$\Delta\NB\le0.146$ and the localised bound $\Delta\NB\le0.061$.
+$\Delta\NB\le\exGlobalNb$ and the localised bound $\Delta\NB\le\exLocalNb$.
 
 \begin{corollary}[Cohort-level omission]
 The per-patient bound is concave in $\varepsilon$, so by Jensen the
