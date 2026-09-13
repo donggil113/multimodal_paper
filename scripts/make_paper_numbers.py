@@ -42,8 +42,8 @@ REQUIRED = [
     "simRecoveryFloor", "simSubsetsScored", "simSubsetsBelowFloor",
     "simRecoveryFullPanel", "simMeanAbsErr", "simRegimeMaxN",
     "simSynergyFirstN", "simRedundancyFirstN",
-    "ablN", "ablRegimeFm", "ablRegimeNoFm", "ablRecoveredFm", "ablRecoveredNoFm",
-    "treeInteractionBits",
+    "powBothFrac", "powEventsMin", "powEventsMax", "powSynMin", "powSynMax",
+    "powTreeSynMax",
     "cohortN", "cohortSubjects", "cohortSource", "primaryPrevalence",
     "primaryBaselineBits", "primaryFullBits", "primaryBaselineAuroc",
     "primaryFullAuroc", "primaryNullGap", "primaryIdentityRelErr",
@@ -158,13 +158,12 @@ def main() -> None:
         M.add("simSynergyFirstN",
               f"{min(r['first_correct_n'] for r in syn):,}".replace(",", "{,}")
               if syn else None)
-        M.add("ablN", f"{sim.get('ablation_n', 0):,}".replace(",", "{,}")
-              if sim.get("ablation_n") else None)
-        M.add("ablRegimeFm", _pct(sim.get("ablation_regime_accuracy_fm"), 0))
-        M.add("ablRegimeNoFm", _pct(sim.get("ablation_regime_accuracy_nofm"), 0))
-        M.add("ablRecoveredFm", _pct(sim.get("ablation_recovered_fm"), 0))
-        M.add("ablRecoveredNoFm", _pct(sim.get("ablation_recovered_nofm"), 0))
-        M.add("treeInteractionBits", _fmt(sim.get("tree_interaction_bits"), 4))
+        M.add("powBothFrac", _pct(sim.get("power_both_present_frac"), 0))
+        M.add("powEventsMin", sim.get("power_events_min"))
+        M.add("powEventsMax", sim.get("power_events_max"))
+        M.add("powSynMin", _pct(sim.get("power_syn_recovered_min"), 0))
+        M.add("powSynMax", _pct(sim.get("power_syn_recovered_max"), 0))
+        M.add("powTreeSynMax", _pct(sim.get("tree_syn_recovered_max"), 0))
         M.add("simRedundancyFirstN",
               f"{min(r['first_correct_n'] for r in red):,}".replace(",", "{,}")
               if red else None)

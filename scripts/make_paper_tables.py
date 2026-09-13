@@ -132,22 +132,26 @@ def main() -> None:
     else:
         write(None, out / "regime_first_correct_table.tex")
 
-    # architecture ablation
-    ab = R / "simulation" / "tables" / "architecture_ablation.csv"
+    # synergy power grid
+    ab = R / "simulation" / "tables" / "synergy_power.csv"
     if ab.exists():
         df = pd.read_csv(ab)
-        keep = ["use_fm", "modality", "true_marginal", "est_marginal",
-                "true_conditional", "est_conditional", "true_regime", "est_regime",
-                "regime_correct"]
+        keep = ["n", "complete", "events_with_both", "modality", "true_conditional",
+                "est_conditional", "true_regime", "est_regime"]
         df = df[[c for c in keep if c in df.columns]]
         df.columns = [c.replace("_", " ") for c in df.columns]
-        write(df, out / "ablation_table.tex")
+        write(df, out / "power_table.tex")
     else:
-        write(None, out / "ablation_table.tex")
+        write(None, out / "power_table.tex")
 
-    tr = R / "simulation" / "tables" / "tree_reference.csv"
+    tr = R / "simulation" / "tables" / "synergy_power_tree.csv"
     if tr.exists():
-        write(pd.read_csv(tr), out / "tree_reference_table.tex", align="lrr")
+        df = pd.read_csv(tr)
+        keep = ["n", "complete", "events_with_both", "modality",
+                "true_conditional", "est_conditional"]
+        df = df[[c for c in keep if c in df.columns]]
+        df.columns = [c.replace("_", " ") for c in df.columns]
+        write(df, out / "tree_reference_table.tex")
     else:
         write(None, out / "tree_reference_table.tex")
 

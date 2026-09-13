@@ -184,84 +184,110 @@ def first_correct_size(qual: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows).sort_values("true_effect_bits", ascending=False)
 
 
-def architecture_ablation(n: int = 18000, outcome: str = "mortality_30d",
-                          seed: int = 0, train: TrainConfig | None = None
-                          ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    r"""Can the predictive family represent an interaction, and does it matter?
+def synergy_power(sizes=(18000, 50000), completeness=(False, True),
+                  outcome: str = "mortality_30d", seed: int = 0,
+                  train: TrainConfig | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    r"""What governs whether a synergistic term is recoverable at all?
 
-    Synergistic information is by definition an interaction between modalities.
-    A head with no multiplicative path between two modality embeddings cannot
-    express one, so it will report synergy as absent *at every sample size* --
-    and the failure looks exactly like "there is no synergy here", which is the
-    conclusion a study would draw.
+    Synergy is the last part of the decomposition to become estimable, and the
+    binding constraint is not the cohort size. An interaction between two
+    modalities can only be learned from patients who received *both*, so with
+    realistic acquisition rates -- 67\% for the electrocardiogram and 57\% for the
+    radiograph in our design -- the effective sample is about 40\% of the cohort,
+    and the effective *event* count correspondingly smaller. That is the number
+    to power a multimodal study on, and it is not the one usually reported.
 
-    Two arms of the same family differing only in
-    :attr:`~infogain.encoders.fusion.FamilyConfig.use_fm`, plus a
-    gradient-boosted-tree reference that establishes the information is
-    extractable at all. The tree is not part of :math:`\mathcal V` and its number
-    is not an :math:`I_{\mathcal V}`; it is there to separate "the family cannot
-    see it" from "it is not there".
+    The grid crosses cohort size with an all-modalities-acquired variant, which
+    separates the two explanations: if size were the constraint, the complete-data
+    arm at fixed :math:`n` would look the same as the incomplete one.
+
+    A gradient-boosted-tree arm is included as a reference. It is not a member of
+    :math:`\mathcal V` and its numbers are not :math:`I_{\mathcal V}` estimates;
+    it is there to show the information is extractable by *something*, so that a
+    low estimate reads as "hard to reach" rather than "not present".
     """
     from sklearn.ensemble import HistGradientBoostingClassifier
-    from sklearn.model_selection import cross_val_predict
+    from sklearn.model_selection import GroupKFold
 
-    from infogain.encoders.fusion import FamilyConfig
-    from infogain.theory.lemmas import auroc, entropy_bits
+    from infogain.vinfo.core import label_logprob, pointwise_v_information
 
     train = train or TrainConfig(epochs=130, n_folds=4, seeds=(0, 1), patience=18)
-    cohort, gt = generate(n=n, seed=seed)
-    truth = ground_truth_table(gt, outcome, baseline=sorted(cohort.spec.baseline),
-                               respect_observation=True).set_index("modality")
-    full = frozenset(cohort.spec.names)
+    rows, tree_rows = [], []
+    for n in sizes:
+        for complete in completeness:
+            design = default_design()
+            if complete:
+                design.missingness = {m: (12.0, 0.0) for m in design.missingness}
+            cohort, gt = generate(design, n=n, seed=seed)
+            base, full = cohort.spec.baseline, frozenset(cohort.spec.names)
+            truth = ground_truth_table(gt, outcome, baseline=sorted(base),
+                                       respect_observation=True).set_index("modality")
+            i_true = gt.information(outcome, set(full), respect_observation=True)
+            y = cohort.y(outcome)
+            both = (cohort.blocks["ecg"].observed & cohort.blocks["cxr"].observed)
+            shared = {"n": n, "complete": complete,
+                      "both_present_frac": float(both.mean()),
+                      "events_with_both": int((y * both).sum()),
+                      "i_full_true": i_true}
 
-    rows = []
-    for use_fm in (True, False):
-        cfg = TrainConfig(**{**train.__dict__,
-                             "family": FamilyConfig(**{**train.family.__dict__,
-                                                       "use_fm": use_fm})})
-        t0 = time.time()
-        cf = fit_family(cohort, outcome, cfg)
-        log.info("ablation use_fm=%s fitted in %.0fs", use_fm, time.time() - t0)
-        est = decomposition_table(cf, n_perm=1).set_index("modality")
-        i_full = float(cf.pvi(full).mean())
-        i_true = gt.information(outcome, set(full), respect_observation=True)
-        for m in est.index:
-            if m not in truth.index:
-                continue
-            t, e = truth.loc[m], est.loc[m]
-            rows.append({
-                "use_fm": use_fm, "modality": m, "n": n,
-                "true_marginal": t["marginal"], "est_marginal": e["marginal_bits"],
-                "true_conditional": t["conditional"],
-                "est_conditional": e["conditional_bits"],
-                "true_regime": regime_of(t["marginal"], t["conditional"]),
-                "est_regime": regime_of(e["marginal_bits"], e["conditional_bits"]),
-                "i_full_est": i_full, "i_full_true": i_true,
-                "i_full_recovered": i_full / max(i_true, 1e-9)})
-    abl = pd.DataFrame(rows)
-    abl["regime_correct"] = abl["true_regime"] == abl["est_regime"]
+            t0 = time.time()
+            cf = fit_family(cohort, outcome, train)
+            log.info("power study n=%d complete=%s fitted in %.0fs", n, complete,
+                     time.time() - t0)
+            est = decomposition_table(cf, n_perm=1).set_index("modality")
+            i_full = float(cf.pvi(full).mean())
+            for m in est.index:
+                if m not in truth.index:
+                    continue
+                t, e = truth.loc[m], est.loc[m]
+                rows.append({**shared, "family": "neural", "modality": m,
+                             "i_full_est": i_full,
+                             "true_marginal": t["marginal"],
+                             "est_marginal": e["marginal_bits"],
+                             "true_conditional": t["conditional"],
+                             "est_conditional": e["conditional_bits"],
+                             "true_regime": regime_of(t["marginal"], t["conditional"]),
+                             "est_regime": regime_of(e["marginal_bits"],
+                                                     e["conditional_bits"])})
 
-    # tree reference: is the interaction extractable from these features at all?
-    def h(q):
-        q = np.clip(q, 1e-9, 1 - 1e-9)
-        return -(q * np.log2(q) + (1 - q) * np.log2(1 - q))
-
-    y = gt.y[outcome]
-    base_x = np.hstack([gt.X[m] for m in sorted(cohort.spec.baseline)])
-    ref = []
-    for name, extra in (("baseline", []), ("baseline+ecg", ["ecg"]),
-                        ("baseline+cxr", ["cxr"]), ("baseline+ecg+cxr", ["ecg", "cxr"])):
-        feats = np.hstack([base_x] + [gt.X[m] for m in extra])
-        model = HistGradientBoostingClassifier(max_iter=250, learning_rate=0.08,
-                                               random_state=seed)
-        pr = cross_val_predict(model, feats, y, cv=4, method="predict_proba")[:, 1]
-        ref.append({"features": name, "auroc": float(auroc(y, pr)),
-                    "bits": float(entropy_bits(float(y.mean())) - np.mean(h(pr)))})
-    ref_df = pd.DataFrame(ref)
-    b = dict(zip(ref_df["features"], ref_df["bits"]))
-    ref_df.attrs["interaction_bits"] = (b["baseline+ecg+cxr"] - b["baseline+ecg"]
-                                        - b["baseline+cxr"] + b["baseline"])
-    return abl, ref_df
+            # tree reference on the same folds and the same PVI definition
+            names = cohort.spec.names
+            cols, span, at = [], {}, 0
+            for m in names:
+                v = cohort.blocks[m].values.astype(np.float64).copy()
+                v[~cohort.blocks[m].observed] = np.nan
+                cols.append(v)
+                span[m] = (at, at + v.shape[1])
+                at += v.shape[1]
+            X = np.hstack(cols)
+            groups = cohort.index["subject_id"].to_numpy()
+            want = [base, full] + [full - {m} for m in cohort.spec.orderable] \
+                   + [base | {m} for m in cohort.spec.orderable]
+            probs = {subset_key(s): np.zeros(len(y)) for s in want}
+            p_null = np.zeros(len(y))
+            for tr, te in GroupKFold(n_splits=train.n_folds).split(X, y, groups):
+                p_null[te] = y[tr].mean()
+                for s in want:
+                    idx = np.concatenate([np.arange(*span[m]) for m in sorted(s)])
+                    mdl = HistGradientBoostingClassifier(
+                        max_iter=400, learning_rate=0.06, l2_regularization=1.0,
+                        early_stopping=True, n_iter_no_change=25, random_state=seed)
+                    mdl.fit(X[tr][:, idx], y[tr])
+                    probs[subset_key(s)][te] = mdl.predict_proba(X[te][:, idx])[:, 1]
+            tpvi = lambda ss: pointwise_v_information(  # noqa: E731
+                label_logprob(probs[subset_key(ss)], y), label_logprob(p_null, y))
+            for m in cohort.spec.orderable:
+                t = truth.loc[m]
+                tree_rows.append({**shared, "family": "tree", "modality": m,
+                                  "i_full_est": float(tpvi(full).mean()),
+                                  "true_marginal": t["marginal"],
+                                  "est_marginal": float((tpvi(base | {m}) - tpvi(base)).mean()),
+                                  "true_conditional": t["conditional"],
+                                  "est_conditional": float(
+                                      (tpvi(full) - tpvi(full - {m})).mean())})
+    out = pd.DataFrame(rows)
+    out["regime_correct"] = out["true_regime"] == out["est_regime"]
+    return out, pd.DataFrame(tree_rows)
 
 
 def theorem_study_exact(n: int = 60000, outcome: str = "mortality_30d",
@@ -338,18 +364,7 @@ def summarize(rec: pd.DataFrame, qual: pd.DataFrame, thm: dict,
         "mean_abs_error_bits": float((big["est_bits"] - big["truth_bits"]).abs().mean()),
         "regime_accuracy": float(
             qual[qual["n"] == qual["n"].max()]["regime_correct"].mean()),
-        **({} if abl is None else {
-            "ablation_n": int(abl["n"].iloc[0]),
-            "ablation_regime_accuracy_fm": float(
-                abl[abl["use_fm"]]["regime_correct"].mean()),
-            "ablation_regime_accuracy_nofm": float(
-                abl[~abl["use_fm"]]["regime_correct"].mean()),
-            "ablation_recovered_fm": float(abl[abl["use_fm"]]["i_full_recovered"].iloc[0]),
-            "ablation_recovered_nofm": float(
-                abl[~abl["use_fm"]]["i_full_recovered"].iloc[0]),
-            "tree_interaction_bits": float(ref.attrs["interaction_bits"]),
-            "tree_reference": ref.to_dict("records"),
-        }),
+        **({} if abl is None else _power_summary(abl, ref)),
         "regime_accuracy_by_size": regime_accuracy_by_size(qual).to_dict("records"),
         "regime_first_correct": first_correct_size(qual).to_dict("records"),
         "regime_max_n": int(qual["n"].max()),
@@ -358,6 +373,38 @@ def summarize(rec: pd.DataFrame, qual: pd.DataFrame, thm: dict,
         "theorem2_all_hold": bool(all(r["holds"] for r in thm["theorem2"])),
         "theorem3": thm["theorem3"],
     }
+
+
+def _power_summary(abl: pd.DataFrame, ref: pd.DataFrame | None) -> dict:
+    """Condense the synergy power grid into the quantities the paper quotes."""
+    syn = abl[abl["true_regime"] == "synergistic"].copy()
+    syn["recovered"] = syn["est_conditional"] / syn["true_conditional"].clip(lower=1e-9)
+    by = (syn.groupby(["n", "complete"])
+             .agg(events_with_both=("events_with_both", "first"),
+                  both_present_frac=("both_present_frac", "first"),
+                  syn_recovered=("recovered", "mean"),
+                  i_full_recovered=("i_full_est", "first"),
+                  i_full_true=("i_full_true", "first"))
+             .reset_index())
+    by["i_full_recovered"] = by["i_full_recovered"] / by["i_full_true"].clip(lower=1e-9)
+    out = {"power_grid": by.to_dict("records"),
+           "power_regime_accuracy": float(abl["regime_correct"].mean())}
+    lo = by.loc[by["events_with_both"].idxmin()]
+    hi = by.loc[by["events_with_both"].idxmax()]
+    out.update({
+        "power_events_min": int(lo["events_with_both"]),
+        "power_events_max": int(hi["events_with_both"]),
+        "power_syn_recovered_min": float(lo["syn_recovered"]),
+        "power_syn_recovered_max": float(hi["syn_recovered"]),
+        "power_both_present_frac": float(
+            by.loc[~by["complete"], "both_present_frac"].mean()),
+    })
+    if ref is not None and len(ref):
+        r = ref.copy()
+        r["recovered"] = r["est_conditional"] / r["true_conditional"].clip(lower=1e-9)
+        rs = r[r["true_conditional"] > 0.005]
+        out["tree_syn_recovered_max"] = float(rs["recovered"].max()) if len(rs) else float("nan")
+    return out
 
 
 def rebuild_summary(out: Path, outcome: str) -> dict:
@@ -370,14 +417,10 @@ def rebuild_summary(out: Path, outcome: str) -> dict:
            "theorem3": json.loads((out / "summary.json").read_text()).get("theorem3", {})
            if (out / "summary.json").exists() else {}}
     sizes = tuple(sorted(rec["n"].unique()))
-    abl_p = out / "tables" / "architecture_ablation.csv"
-    ref_p = out / "tables" / "tree_reference.csv"
+    abl_p = out / "tables" / "synergy_power.csv"
+    ref_p = out / "tables" / "synergy_power_tree.csv"
     abl = pd.read_csv(abl_p) if abl_p.exists() else None
     ref = pd.read_csv(ref_p) if ref_p.exists() else None
-    if ref is not None:
-        b = dict(zip(ref["features"], ref["bits"]))
-        ref.attrs["interaction_bits"] = (b["baseline+ecg+cxr"] - b["baseline+ecg"]
-                                         - b["baseline+cxr"] + b["baseline"])
     summary = summarize(rec, qual, thm, sizes, outcome, abl=abl, ref=ref)
     save_json(summary, out / "summary.json")
     return summary
@@ -389,7 +432,7 @@ def main() -> None:  # pragma: no cover - CLI
     ap.add_argument("--outcome", default="mortality_30d")
     ap.add_argument("--sizes", default="4000,12000,36000")
     ap.add_argument("--qual-sizes", default="6000,18000,50000")
-    ap.add_argument("--abl-n", type=int, default=18000)
+    ap.add_argument("--power-sizes", default="18000,50000")
     ap.add_argument("--exact-n", type=int, default=60000)
     ap.add_argument("--epochs", type=int, default=110)
     ap.add_argument("--folds", type=int, default=4)
@@ -416,7 +459,8 @@ def main() -> None:  # pragma: no cover - CLI
     if args.quick:
         sizes = (2000, 5000, 10000)
         train = TrainConfig(epochs=25, n_folds=3, seeds=(0,), patience=8, min_epochs=8)
-        args.qual_sizes, args.exact_n, args.abl_n = "2000,5000", 15000, 4000
+        args.qual_sizes, args.exact_n = "2000,5000", 15000
+        args.power_sizes = "4000"
 
     log.info("== recovery study ==")
     rec = add_extrapolation(recovery_study(sizes, args.outcome, args.seed, train))
@@ -429,10 +473,11 @@ def main() -> None:  # pragma: no cover - CLI
     regime_accuracy_by_size(qual).to_csv(out / "tables" / "regime_by_size.csv", index=False)
     first_correct_size(qual).to_csv(out / "tables" / "regime_first_correct.csv", index=False)
 
-    log.info("== architecture ablation ==")
-    abl, ref = architecture_ablation(args.abl_n, args.outcome, args.seed, train)
-    abl.to_csv(out / "tables" / "architecture_ablation.csv", index=False)
-    ref.to_csv(out / "tables" / "tree_reference.csv", index=False)
+    log.info("== synergy power study ==")
+    abl, ref = synergy_power(tuple(int(x) for x in args.power_sizes.split(",")),
+                             (False, True), args.outcome, args.seed, train)
+    abl.to_csv(out / "tables" / "synergy_power.csv", index=False)
+    ref.to_csv(out / "tables" / "synergy_power_tree.csv", index=False)
 
     log.info("== exact theorem checks ==")
     thm = theorem_study_exact(args.exact_n, args.outcome, args.seed)

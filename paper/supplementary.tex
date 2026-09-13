@@ -739,22 +739,20 @@ diagnostics.}
 \end{table}
 
 \begin{table}[htbp]\centering\small
-\caption{Architecture ablation. Two arms of the same family differing only in
-whether the head carries an explicit second-order term over the modality tokens.
-Without it, both synergistic modalities are reported as independent or
-redundant; with it, the regimes are recovered. Everything else -- encoders,
-masking, cross-fitting, training schedule -- is identical.}
-\label{tab:s-ablation}
-\input{tables/ablation_table}
+\caption{Synergy power grid. Cohort size crossed with an all-modalities-acquired
+variant, which separates "not enough patients" from "not enough patients who had
+both tests". Recovery of the synergistic terms tracks \texttt{events with both},
+not \texttt{n}: an interaction can only be learned from the overlap.}
+\label{tab:s-power}
+\input{tables/power_table}
 \end{table}
 
 \begin{table}[htbp]\centering\small
-\caption{Gradient-boosted-tree reference, establishing that the interaction is
-extractable from these features at all. The tree is not a member of $\Vc$ and
-its numbers are not $\IV$ estimates; it exists to separate ``the family cannot
-see it'' from ``it is not there''. The implied interaction is
-$I(\text{ecg,cxr}) - I(\text{ecg}) - I(\text{cxr}) + I(\text{baseline}) =
-\treeInteractionBits$ bits.}
+\caption{Gradient-boosted-tree reference on the same folds and the same
+pointwise definition. The tree is not a member of $\Vc$ and its numbers are not
+$\IV$ estimates; it is here to separate ``hard for this family to reach'' from
+``not present in the data''. It is subject to the same overlap constraint, which
+is the point.}
 \label{tab:s-tree}
 \input{tables/tree_reference_table}
 \end{table}

@@ -89,9 +89,9 @@ benefit. We estimate all quantities patient-by-patient with a cross-fitted
 masked multimodal model, correct the finite-sample learning bias by
 learning-curve extrapolation, and validate the whole pipeline against a
 generative model in which the true decomposition is known in closed form -- which
-also exposes a trap: a fusion architecture with no multiplicative path between
-modalities reports zero synergy at every sample size, silently, and
-concatenate-then-MLP -- the field's default -- has exactly that blind spot. On linked MIMIC-IV records -- electrocardiograms, chest radiographs, laboratory
+also shows what governs whether synergy is visible at all: not the cohort size
+but the number of events for which both modalities were acquired, a quantity no
+multimodal study reports. On linked MIMIC-IV records -- electrocardiograms, chest radiographs, laboratory
 panels and notes for the same patients -- the same pair of modalities is
 redundant for one endpoint and synergistic for another, and the benefit of any
 given test is concentrated in a minority of patients (Gini
@@ -374,45 +374,38 @@ estimator. The mean absolute error
 over \emph{all} subsets, which is well behaved at zero, is
 \simMeanAbsErr\ bits.
 
-Second -- and this is the finding we did not expect --
-\textbf{a predictive family with no multiplicative path between two modalities
-cannot see synergy at any sample size, and the failure is silent}. Our first
-architecture was the standard one: per-modality encoders, a transformer over the
-modality tokens, then a multilayer-perceptron head. It recovered the main-effect
-subsets well and reported \emph{zero} synergy for both synergistic modalities at
-every cohort size we tried, up to $n=50\,000$. Read at face value, that is a
-negative result about modality complementarity.
+Second, \textbf{the synergistic term is the last part of the decomposition to
+become estimable, and what governs it is not the cohort size but the number of
+events for which \emph{both} modalities were acquired}. An interaction can only
+be learned from patients who had both tests. With the acquisition rates in our
+design -- 67\% for the electrocardiogram, 57\% for the radiograph -- that overlap
+is \powBothFrac\% of the cohort, and the event count inside it correspondingly
+smaller. Crossing cohort size with an all-acquired variant separates the two
+explanations, and it is the overlap that tracks: recovery of the synergistic
+terms rises from \powSynMin\% at \powEventsMin\ overlapping events to
+\powSynMax\% at \powEventsMax, essentially independently of how the events were
+obtained (Supplementary Table~S7).
 
-It is not a sample-size limit and it is not a property of the data. On the same
-features a gradient-boosted tree recovers the interaction directly
-(\treeInteractionBits\ bits, Supplementary Table~S8), and the two latent factors
-are individually recoverable from their own modality for over 90\% of patients.
-The information is present and easy to extract; the family could not represent
-it. Synergistic information \emph{is} an interaction between modalities, so a
-head that only ever sees a sum or a mean of modality embeddings has no way to
-express one, and attention has to discover a multiplicative composition from the
-handful of events an interaction contributes to the loss.
+Two things follow. For anyone designing a multimodal study, the quantity to
+power on is the overlap, not the cohort: at these acquisition rates, detecting a
+given interaction needs roughly two and a half times the patients that the same
+interaction would need if every test were universal, and no headline cohort size
+reveals that. For anyone reading one, an estimate of zero synergy from a
+modestly-sized cohort is weak evidence of absence. The error is at least in the
+safe direction -- it understates a test's value, so it cannot manufacture a
+reduction that is not there -- and the learning-curve extrapolation and the
+tree reference in Supplementary Table~S8 give two independent ways to tell
+"hard to reach" from "not present".
 
-Adding an explicit second-order term over the modality tokens --
-$\sum_{m<m'} e_m \odot e_{m'}$, computable in $O(Md)$ by the
-factorization-machine identity -- removes the blind spot: at $n=\ablN$ regime
-accuracy goes from \ablRegimeNoFm\% to \ablRegimeFm\%, and recovery of the full
-panel's information from \ablRecoveredNoFm\% to \ablRecoveredFm\%
-(Supplementary Table~S7). We report this at length because concatenate-then-MLP
-fusion is the default in clinical multimodal work and has the same blind spot: a
-study using it would conclude that two synergistic tests are independent, and
-nothing in its output would say otherwise. It is also a reminder of what
-$\IV$ means -- information is relative to the family, so the family must be able
-to represent what is being measured, and reporting the family is part of
-reporting the number.
-
-With the interaction path in place, the qualitative call -- redundant,
-synergistic or independent -- is recovered at a smaller cohort than the bits
-are. Supplementary Table~S4 gives, for each modality, the smallest cohort at
-which its regime is first called correctly, against the size of the effect being
-detected: a planning number for anyone designing such a study, and one we
-measure rather than assert. A hospital deciding whether a test is worth ordering
-needs the sign and the ordering, not the fourth decimal place.
+We also checked that this is a statistical limit rather than an artefact of our
+predictor family. Giving the fusion head an explicit second-order term over the
+modality tokens ($\sum_{m<m'} e_m \odot e_{m'}$, computable in $O(Md)$ by the
+factorization-machine identity) changes the picture very little, and a
+gradient-boosted-tree family fitted to the same folds recovers at most
+\powTreeSynMax\% of the synergistic terms -- more than the neural family on some
+settings, but subject to the same overlap constraint. The interaction path is
+kept because it is principled and costs nothing, not because it rescues the
+estimate.
 
 We report three further diagnostics with every run, because each is a way the
 analysis could be quietly wrong. The null-model gap -- how far the network's
@@ -555,12 +548,13 @@ interval measurements and CheXpert labels rather than raw waveforms and pixels -
 which makes the decomposition auditable by a clinician at the cost of some
 usable information; the raw-signal path is implemented, and quantifying what
 that costs requires the full waveform and image download (Supplementary~\S8).
-Relatedly, synergistic terms are the last to become detectable as a cohort
-grows, so a small study will report a synergistic test as independent. The error
-is conservative -- it understates a test's value rather than overstating it, and
-so cannot manufacture a reduction that is not there -- but it is an error, and
-Supplementary Table~S4 says how large a cohort avoids it at a given effect
-size. MIMIC-IV is a single academic centre in one
+Relatedly, synergistic terms are the last to become estimable, and the binding
+constraint is the number of patients who received both modalities rather than
+the cohort size, so a study whose acquisition rates leave a small overlap will
+report a synergistic test as independent. The error is conservative -- it
+understates a test's value rather than overstating it, and so cannot manufacture
+a reduction that is not there -- but it is an error, and Supplementary
+Tables~S4 and~S7 give the sample sizes involved. MIMIC-IV is a single academic centre in one
 country, its test-ordering culture is its own, and the cost figures are US list
 prices; the frontier is therefore reported in full so that a reader with a
 different fee schedule can read off their own operating point. Finally, a
