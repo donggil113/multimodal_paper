@@ -49,6 +49,31 @@ def run(cmd: list[str], log_path: Path) -> float:
     return dt
 
 
+def find_stale_runs() -> list[str]:
+    """Other INFOGAIN stage processes already running on this machine.
+
+    Two suites sharing four cores do not take turns; they each take twice as
+    long, and if both reach the same output directory the second silently
+    overwrites the first. A leftover stage from an interrupted run is easy to
+    miss -- ``pkill -f run_all.py`` matches the shell that issues it and kills
+    that instead, leaving the stage orphaned under init -- so check rather than
+    assume.
+    """
+    try:
+        out = subprocess.run(["pgrep", "-af", "infogain.experiments.run_"],
+                             capture_output=True, text=True, timeout=10).stdout
+    except (FileNotFoundError, subprocess.SubprocessError):
+        return []
+    me = str(os.getpid())
+    rows = []
+    for line in out.splitlines():
+        pid, _, args = line.partition(" ")
+        if pid in (me, str(os.getppid())) or "pgrep" in args:
+            continue
+        rows.append(f"  pid {pid}: {args[:110]}")
+    return rows
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--quick", action="store_true")
@@ -61,7 +86,17 @@ def main() -> None:
                     help="run the analysis on a real PhysioNet extraction")
     ap.add_argument("--outcomes", default="mortality_30d,hf_readmission_30d,aki_7d,icu_transfer_48h")
     ap.add_argument("--skip", default="", help="comma-separated stage names to skip")
+    ap.add_argument("--force", action="store_true",
+                    help="start even if other INFOGAIN stages are already running")
     args = ap.parse_args()
+
+    stale = find_stale_runs()
+    if stale and not args.force:
+        print("Refusing to start: INFOGAIN stages are already running.\n"
+              + "\n".join(stale)
+              + "\n\nKill them by PID (not `pkill -f`, which matches the shell "
+                "issuing it), or pass --force.")
+        raise SystemExit(2)
 
     py = sys.executable
     res = Path(args.results)
