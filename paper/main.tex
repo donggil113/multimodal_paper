@@ -368,8 +368,9 @@ $\hat I(m) = I_\infty - a m^{-\alpha}$ closes much of the remaining gap, to
 Recovery percentages are reported over the \simSubsetsScored\ subsets whose true
 information exceeds \simRecoveryFloor\ bits (\simSubsetsBelowFloor\ fall below).
 Below that floor the ratio divides one noise term by another and swings in both
-directions -- our raw table shows 180\% ``recovery'' on a subset genuinely worth
-0.008 bits -- which says nothing about the estimator. The mean absolute error
+directions -- a subset genuinely worth a few thousandths of a bit can show ``recovery''
+far above 100\% or below 0\% purely by chance -- which says nothing about the
+estimator. The mean absolute error
 over \emph{all} subsets, which is well behaved at zero, is
 \simMeanAbsErr\ bits.
 
@@ -380,7 +381,7 @@ At the largest simulated cohort the estimator assigns the correct regime to
 way that is itself the useful result: redundancy is called correctly first,
 because it is a main effect; synergy last, because it is an interaction between
 latent factors buried in two different noisy read-outs, and interactions need
-events. Table~S3 gives, for each modality, the smallest cohort at which its
+events. Supplementary Table~S4 gives, for each modality, the smallest cohort at which its
 regime is first called correctly, against the size of the effect being detected
 -- a planning number for anyone designing such a study, and one we measure
 rather than assert. A hospital deciding whether a test is worth ordering needs
@@ -444,7 +445,7 @@ ordering by expected information gain.
 
 The prospective score, computed without the test result or the outcome, agrees
 with the retrospective realised gain in cohort mean, as the tower property
-requires (Supplementary Table~S4); the two are computed by entirely different
+requires (Supplementary Table~S5); the two are computed by entirely different
 routes and their agreement jointly validates the conditional sampler, the model
 family and the cross-fitting.
 
@@ -481,7 +482,7 @@ given the observed context, plus overlap. Neither is free.
 
 We report the overlap diagnostic directly: the propensity to have received each
 test is modelled from the baseline context, and the fraction of patients outside
-the region of common support is reported per modality (Supplementary Table~S5).
+the region of common support is reported per modality (Supplementary Table~S6).
 Patients in that region are flagged rather than scored, because for them the
 counterfactual is an extrapolation, not an estimate.
 
