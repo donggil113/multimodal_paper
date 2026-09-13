@@ -28,6 +28,7 @@ section:
 from __future__ import annotations
 
 import argparse
+import json
 import time
 from pathlib import Path
 
@@ -179,6 +180,55 @@ def theorem_study_exact(n: int = 60000, outcome: str = "mortality_30d",
             "n": n, "outcome": outcome}
 
 
+#: Subsets whose true information is below this carry no usable signal, and a
+#: "percent recovered" computed against them is a ratio of two noise terms --
+#: which is how the raw table shows 180% recovery on a subset worth 0.008 bits.
+#: Recovery statistics are reported over subsets above the floor, with the count
+#: excluded stated alongside.
+RECOVERY_FLOOR_BITS = 0.01
+
+
+def summarize(rec: pd.DataFrame, qual: pd.DataFrame, thm: dict,
+              sizes: tuple[int, ...], outcome: str,
+              floor: float = RECOVERY_FLOOR_BITS) -> dict:
+    """Assemble the simulation summary, guarding the near-zero-truth subsets."""
+    big = rec[rec["n"] == max(sizes)]
+    ok = big[big["truth_bits"] >= floor]
+    corrected = (ok["corrected_bits"] / ok["truth_bits"].clip(lower=1e-9)
+                 if len(ok) else pd.Series(dtype=float))
+    return {
+        "sizes": list(sizes), "outcome": outcome,
+        "recovery_floor_bits": floor,
+        "n_subsets_scored": int(len(ok)),
+        "n_subsets_below_floor": int(len(big) - len(ok)),
+        "recovery_at_largest_n": float(ok["recovered"].median()) if len(ok) else float("nan"),
+        "recovery_after_correction": float(corrected.median()) if len(ok) else float("nan"),
+        "recovery_full_panel": float(
+            big.loc[big["size"].idxmax(), "recovered"]) if len(big) else float("nan"),
+        "mean_abs_error_bits": float((big["est_bits"] - big["truth_bits"]).abs().mean()),
+        "regime_accuracy": float(qual["regime_correct"].mean()),
+        "regime_table": qual.to_dict("records"),
+        "theorem1_all_hold": bool(all(r["holds"] for r in thm["theorem1"])),
+        "theorem2_all_hold": bool(all(r["holds"] for r in thm["theorem2"])),
+        "theorem3": thm["theorem3"],
+    }
+
+
+def rebuild_summary(out: Path, outcome: str) -> dict:
+    """Recompute summary.json from the saved tables, without refitting anything."""
+    rec = pd.read_csv(out / "tables" / "recovery.csv")
+    qual = pd.read_csv(out / "tables" / "regime_recovery.csv")
+    t1 = pd.read_csv(out / "tables" / "exact_theorem1.csv")
+    t2 = pd.read_csv(out / "tables" / "exact_theorem2.csv")
+    thm = {"theorem1": t1.to_dict("records"), "theorem2": t2.to_dict("records"),
+           "theorem3": json.loads((out / "summary.json").read_text()).get("theorem3", {})
+           if (out / "summary.json").exists() else {}}
+    sizes = tuple(sorted(rec["n"].unique()))
+    summary = summarize(rec, qual, thm, sizes, outcome)
+    save_json(summary, out / "summary.json")
+    return summary
+
+
 def main() -> None:  # pragma: no cover - CLI
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default="results/simulation")
@@ -191,9 +241,15 @@ def main() -> None:  # pragma: no cover - CLI
     ap.add_argument("--seeds", type=int, default=2)
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--rebuild-summary", action="store_true",
+                    help="recompute summary.json from saved tables, no refitting")
     args = ap.parse_args()
 
     out = Path(args.out)
+    if args.rebuild_summary:
+        s = rebuild_summary(out, args.outcome)
+        print(json.dumps({k: v for k, v in s.items() if k != "regime_table"}, indent=2))
+        return
     (out / "tables").mkdir(parents=True, exist_ok=True)
     (out / "figures").mkdir(parents=True, exist_ok=True)
     sizes = tuple(int(s) for s in args.sizes.split(","))
@@ -220,24 +276,16 @@ def main() -> None:  # pragma: no cover - CLI
     save(F.fig_recovery(rec, f"simulation: recovering known information ({args.outcome})"),
          out / "figures" / "figS1_recovery", table=rec)
 
-    summary = {
-        "sizes": list(sizes), "outcome": args.outcome,
-        "recovery_at_largest_n": float(
-            rec[rec["n"] == max(sizes)]["recovered"].median()),
-        "recovery_after_correction": float(
-            (rec[rec["n"] == max(sizes)]["corrected_bits"]
-             / rec[rec["n"] == max(sizes)]["truth_bits"].clip(lower=1e-9)).median()),
-        "regime_accuracy": float(qual["regime_correct"].mean()),
-        "regime_table": qual.to_dict("records"),
-        "theorem1_all_hold": bool(all(r["holds"] for r in thm["theorem1"])),
-        "theorem2_all_hold": bool(all(r["holds"] for r in thm["theorem2"])),
-        "theorem3": thm["theorem3"],
-    }
+    summary = summarize(rec, qual, thm, sizes, args.outcome)
     save_json(summary, out / "summary.json")
     print(rec.to_string(index=False))
     print("\n", qual.round(4).to_string(index=False))
-    print(f"\nmedian recovery at n={max(sizes)}: {summary['recovery_at_largest_n']:.1%}"
-          f"  (after learning-curve correction: {summary['recovery_after_correction']:.1%})")
+    print(f"\nmedian recovery at n={max(sizes)} over the "
+          f"{summary['n_subsets_scored']} subsets above "
+          f"{summary['recovery_floor_bits']} bits: "
+          f"{summary['recovery_at_largest_n']:.1%}"
+          f"  (after learning-curve correction: "
+          f"{summary['recovery_after_correction']:.1%})")
     print(f"regime accuracy: {summary['regime_accuracy']:.0%}   "
           f"Thm1 holds: {summary['theorem1_all_hold']}   "
           f"Thm2 holds: {summary['theorem2_all_hold']}   "

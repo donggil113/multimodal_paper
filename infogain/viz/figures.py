@@ -261,8 +261,16 @@ def fig_reduction_frontier(frontier: pd.DataFrame, comparators: pd.DataFrame,
 # --------------------------------------------------------------------------- #
 # Fig 6: estimator validation against ground truth
 # --------------------------------------------------------------------------- #
-def fig_recovery(df: pd.DataFrame, title: str = "", figsize=(6.8, 3.0)) -> plt.Figure:
-    """Simulation study: estimated vs known information, and recovery vs sample size."""
+def fig_recovery(df: pd.DataFrame, title: str = "", figsize=(6.8, 3.0),
+                 floor_bits: float = 0.01) -> plt.Figure:
+    """Simulation study: estimated vs known information, and recovery vs sample size.
+
+    The right panel is restricted to subsets whose true information exceeds
+    ``floor_bits``: below that, "percent recovered" divides one noise term by
+    another and swings wildly in both directions, which says nothing about the
+    estimator. The left panel keeps every subset, since absolute error is
+    well behaved at zero.
+    """
     apply_style()
     fig, axes = plt.subplots(1, 2, figsize=figsize)
 
@@ -286,16 +294,18 @@ def fig_recovery(df: pd.DataFrame, title: str = "", figsize=(6.8, 3.0)) -> plt.F
     despine(ax)
 
     ax = axes[1]
-    for i, (name, g) in enumerate(df.groupby("subset")):
+    scored = df[df.groupby("subset")["truth_bits"].transform("max") >= floor_bits]
+    for i, (name, g) in enumerate(scored.groupby("subset")):
         g = g.sort_values("n")
         ax.plot(g["n"], 100 * g["est_bits"] / g["truth_bits"].clip(lower=1e-9),
                 marker="o", markersize=3.5, color=CATEGORICAL[i % len(CATEGORICAL)],
-                label=name)
+                label=name.replace("demographics", "demo"))
     ax.axhline(100, color=INK_MUTED, linestyle=(0, (3, 3)), linewidth=1.2)
     ax.set_xscale("log")
     ax.set_xlabel("cohort size")
     ax.set_ylabel("% of true information recovered")
-    ax.legend(loc="lower right", fontsize=6.5)
+    ax.set_ylim(0, 130)
+    ax.legend(loc="lower right", fontsize=5.5, ncols=2)
     despine(ax)
     if title:
         fig.suptitle(title, x=0.01, ha="left", fontsize=10, fontweight="bold")

@@ -39,6 +39,8 @@ REQUIRED = [
     "thyAllHold", "thyTrialsJS", "thyIdentityRelErr", "thyIdentityTrials", "thyPviErr",
     "simRecovery", "simRecoveryCorrected", "simRegimeAccuracy", "simMaxN",
     "simThmOneHolds", "simThmTwoHolds", "simThmThreeRelErr",
+    "simRecoveryFloor", "simSubsetsScored", "simSubsetsBelowFloor",
+    "simRecoveryFullPanel", "simMeanAbsErr",
     "cohortN", "cohortSubjects", "cohortSource", "primaryPrevalence",
     "primaryBaselineBits", "primaryFullBits", "primaryBaselineAuroc",
     "primaryFullAuroc", "primaryNullGap", "primaryIdentityRelErr",
@@ -137,6 +139,11 @@ def main() -> None:
         t3 = sim.get("theorem3", {})
         M.add("simThmThreeRelErr", f"{t3.get('rel_error', float('nan')):.1e}"
               if t3 else None)
+        M.add("simRecoveryFloor", _fmt(sim.get("recovery_floor_bits"), 2))
+        M.add("simSubsetsScored", sim.get("n_subsets_scored"))
+        M.add("simSubsetsBelowFloor", sim.get("n_subsets_below_floor"))
+        M.add("simRecoveryFullPanel", _pct(sim.get("recovery_full_panel")))
+        M.add("simMeanAbsErr", _fmt(sim.get("mean_abs_error_bits"), 4))
 
     # ---- primary endpoint ------------------------------------------------ #
     base = R / args.cohort_name / args.primary

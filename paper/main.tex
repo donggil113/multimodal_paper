@@ -355,12 +355,21 @@ marginal effect by construction).
 Two findings matter. First, \textbf{the estimator is consistent but approaches
 from below}: at $n=\simMaxN$ it recovers a median \simRecovery\% of the true
 information, and the shortfall is concentrated in the synergistic terms, which
-require an interaction to be learned rather than a main effect. This is the
-expected behaviour of a computationally bounded quantity, not a defect --
-$\IV$ is an infimum over what a finite training set can reach, so every estimate
-is a valid lower bound. Learning-curve extrapolation
-$\hat I(m) = I_\infty - a m^{-\alpha}$ closes most of the remaining gap, to
+require an interaction to be learned rather than a main effect (the full panel,
+which carries all of it, sits at \simRecoveryFullPanel\%). This is the expected
+behaviour of a computationally bounded quantity, not a defect -- $\IV$ is an
+infimum over what a finite training set can reach, so every estimate is a valid
+lower bound. Learning-curve extrapolation
+$\hat I(m) = I_\infty - a m^{-\alpha}$ closes much of the remaining gap, to
 \simRecoveryCorrected\% (Fig.~\ref{fig:recovery}).
+
+Recovery percentages are reported over the \simSubsetsScored\ subsets whose true
+information exceeds \simRecoveryFloor\ bits (\simSubsetsBelowFloor\ fall below).
+Below that floor the ratio divides one noise term by another and swings in both
+directions -- our raw table shows 180\% ``recovery'' on a subset genuinely worth
+0.008 bits -- which says nothing about the estimator. The mean absolute error
+over \emph{all} subsets, which is well behaved at zero, is
+\simMeanAbsErr\ bits.
 
 Second, and more important for deployment, \textbf{the qualitative call is right
 long before the bits are}: the estimator assigned the correct regime
