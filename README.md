@@ -122,10 +122,16 @@ extrapolation.
 - **Seed variance is not sampling variance.** Re-running with a new seed moves
   the answer; that variance is separated out and added to every interval rather
   than averaged away.
-- **Nothing after the index time enters the features.** The temporal policy is an
-  explicit object recorded in the cohort metadata. Discharge summaries are
-  excluded from admission-anchored endpoints — the largest single leakage source
-  in multimodal MIMIC work.
+- **Context data precedes the index; the tests being scored follow it.** This
+  distinction is easy to get wrong and expensive when you do. A test is ordered
+  *at* the decision point, so its result necessarily arrives after — an ED
+  electrocardiogram happens minutes to hours after registration. A strict "no
+  future data" rule excludes every candidate test and silently turns the
+  analysis into an analysis of nothing. Orderable modalities may land within a
+  6-hour acquisition window, and every index-anchored outcome clock starts at
+  the *end* of that window so a result cannot predict an event that preceded it.
+  Discharge summaries stay excluded from admission-anchored endpoints — the
+  largest single leakage source in multimodal MIMIC work.
 - **Non-evaluable is not negative.** Readmission for a patient who died in
   hospital, AKI for a chronic-dialysis patient: coded missing, never zero.
 - **Policies are scored honestly.** A policy's prediction for a patient uses only
@@ -136,7 +142,9 @@ extrapolation.
 ## Reproducibility
 
 ```bash
-python -m pytest              # unit + integration tests
+python -m pytest              # 90+ unit and integration tests, including a
+                              # dry run of the PhysioNet extraction against
+                              # synthetic MIMIC-shaped files
 python -m infogain.theory.verify   # numerical certification of every theorem
 python scripts/run_all.py     # full pipeline
 python scripts/make_paper_numbers.py && python scripts/make_paper_tables.py

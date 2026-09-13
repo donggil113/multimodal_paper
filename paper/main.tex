@@ -88,8 +88,10 @@ skipping a test cannot cost more than $\sqrt{\varepsilon/2}/(1-t)$ in net
 benefit. We estimate all quantities patient-by-patient with a cross-fitted
 masked multimodal model, correct the finite-sample learning bias by
 learning-curve extrapolation, and validate the whole pipeline against a
-generative model in which the true decomposition is known in closed form. On
-linked MIMIC-IV records -- electrocardiograms, chest radiographs, laboratory
+generative model in which the true decomposition is known in closed form -- which
+also tells us what it costs to tell a redundant test from a synergistic one:
+redundancy is a main effect and is recovered at modest cohort sizes, synergy is
+an interaction and needs an order of magnitude more. On linked MIMIC-IV records -- electrocardiograms, chest radiographs, laboratory
 panels and notes for the same patients -- the same pair of modalities is
 redundant for one endpoint and synergistic for another, and the benefit of any
 given test is concentrated in a minority of patients (Gini
