@@ -447,10 +447,16 @@ Write $\Delta V=V_2-V_1\ge0$. Its derivative is
 $\Delta V'(t)=\Prob(\eta_1>t)-\Prob(\eta_2>t)$, so $|\Delta V'|\le1$: $\Delta V$
 is $1$-Lipschitz. Since $\nu(t)=1/(t(1-t))\ge4$ on $(0,1)$,
 Theorem~\ref{thm:s-identity} gives
-$\int_0^1\Delta V(t)\,\mathrm{d}t\le \varepsilon/4$. A non-negative $1$-Lipschitz
-function with supremum $h$ attained at $t_0$ dominates the tent
-$(h-|t-t_0|)_+$, whose integral is at least $h^2/2$ (exactly $h^2$ for an
-interior maximum, $h^2/2$ at an endpoint). Hence
+$\int_0^1\Delta V(t)\,\mathrm{d}t\le \varepsilon/4$.
+
+Let $h=\Delta V(t_0)$ be the supremum. By non-negativity and the Lipschitz
+property, $\Delta V(t)\ge (h-|t-t_0|)_+$ for all $t$, so the integral is at
+least the area of that tent intersected with $[0,1]$. The right arm always fits
+inside the unit interval: $\Delta V(t_0)\le V_2(t_0)=\E[(\eta_2-t_0)_+]\le 1-t_0$,
+because $(\eta_2-t_0)_+\le 1-t_0$ pointwise --- so $h\le 1-t_0$ and the tent's
+right half lies entirely in $[t_0,1]$, contributing area $h^2/2$ whatever
+happens to the left arm. (Without this observation the argument has a gap: a
+tent clipped on both sides can have area below $h^2/2$.) Hence
 $h^2/2\le\varepsilon/4$, i.e.\ $h\le\sqrt{\varepsilon/2}$, and
 $\Delta\NB(t)=\Delta V(t)/(1-t)$.
 \end{proof}
@@ -471,7 +477,9 @@ than the bound $\nu\ge4$: if $\Delta V(t_0)=v$ then, by non-negativity and
 $1$-Lipschitzness, $\Delta V(t)\ge (v-|t-t_0|)_+$ everywhere, so
 $\varepsilon=\int\Delta V\nu\ge\int (v-|t-t_0|)_+\nu$. The left-hand side of the
 displayed equation is continuous and strictly increasing in $v$, giving
-uniqueness.
+uniqueness. Clipping the tent at $0$ or $1$ only lowers the left-hand side, so
+the resulting $v^\star$ is conservative; the implementation integrates over
+$[\max(0,t_0-v),\min(1,t_0+v)]$ and therefore inherits that direction.
 \end{proof}
 
 Because $\nu$ blows up at small $t$, Theorem~\ref{thm:s-omit-local} is
