@@ -61,6 +61,12 @@ the patient-level variance that dominates each term separately. At realistic
 cohort sizes this tightens the standard error by roughly an order of magnitude.
 `test_paired_gain_is_tighter_than_unpaired` pins the behaviour.
 
+**Why the permutation test draws in blocks.** The obvious implementation
+allocates an `(n_perm, n)` sign matrix, which is 2 GB at 5000 permutations and
+50k patients and doubles again for the product. Blocks capped at ~160 MB are
+twice as fast and eight times smaller, and the test is statistically identical
+— only the RNG stream differs.
+
 **Why bootstrap intervals are the default and Bernstein is reported alongside.**
 The empirical-Bernstein interval is a genuine finite-sample certificate, but its
 range term is `7R·log(4/α)/(3(n−1))` with `R = 16` bits, which dominates below
@@ -124,6 +130,7 @@ On 4 CPU cores, for a 50,000-encounter cohort with 6 modalities:
 | `fit_family` (4 folds × 2 seeds × 130 epochs) | ~15 min per endpoint |
 | per-patient gains (4 modalities × 24 draws) | ~3 min per endpoint |
 | policy simulation and figures | ~2 min per endpoint |
+| sequential (re-scoring) policy, opt-in | ~k x a one-shot gain pass |
 
 The `labevents` scan on real MIMIC-IV adds ~20 min once, then caches.
 
