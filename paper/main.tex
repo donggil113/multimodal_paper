@@ -276,11 +276,19 @@ Theorem~\ref{thm:identity} immediately says which bits are worth counting. The
 weight $1/t$ concentrates on small thresholds, and a clinician holds a threshold
 in a bounded range -- roughly 2--30\% for the decisions studied here. We
 therefore report the \emph{clinically restricted usable information}
-$I^{[a,b]} = \int_a^b \Delta\NB(t)\,\mathrm{d}t/t$. For the primary endpoint only
-\primaryRestrictedShare\% of the total information gain of the full panel is
-redeemable inside $[0.02, 0.30]$; the rest is earned at thresholds nobody acts
-on. Reporting unrestricted bits, as the information-theoretic literature does,
-overstates clinical value by a factor that varies by modality and endpoint.
+$I^{[a,b]} = \int_a^b \Delta\NB(t)\,\mathrm{d}t/t$.
+
+How much this matters depends entirely on the endpoint, which is itself the
+argument for computing it rather than assuming it. For 30-day mortality
+\primaryRestrictedShare\% of the full panel's information gain is redeemable
+inside $[0.02,0.30]$, so the restricted and unrestricted quantities nearly
+coincide; for acute kidney injury only \restrictedShareMin\% is, and the
+remaining half is earned at thresholds no clinician acts on. Across the four
+endpoints the redeemable share runs from \restrictedShareMin\% to
+\restrictedShareMax\%. An unrestricted bit count is therefore not a fixed
+overstatement that a constant could correct: it overstates clinical value by an
+endpoint-specific factor, and nothing in the number itself says which case you
+are in.
 
 \subsection{Synergy bounds achievable discrimination; redundancy bounds safe omission}
 
@@ -380,32 +388,38 @@ events for which \emph{both} modalities were acquired}. An interaction can only
 be learned from patients who had both tests. With the acquisition rates in our
 design -- 67\% for the electrocardiogram, 57\% for the radiograph -- that overlap
 is \powBothFrac\% of the cohort, and the event count inside it correspondingly
-smaller. Crossing cohort size with an all-acquired variant separates the two
-explanations, and it is the overlap that tracks: recovery of the synergistic
-terms rises from \powSynMin\% at \powEventsMin\ overlapping events to
-\powSynMax\% at \powEventsMax, essentially independently of how the events were
-obtained (Supplementary Table~S7).
+smaller.
+
+Crossing cohort size with an all-acquired variant separates the two
+explanations, and it is the overlap that tracks (Supplementary Table~S7).
+Recovery of the synergistic terms rises from \powSynMin\% at \powEventsMin\
+overlapping events to \powSynMax\% at \powEventsMax. The decisive comparison is
+the middle pair: a cohort of 18\,000 with complete acquisition (1\,391
+overlapping events, 41\% recovered) and one of 50\,000 with realistic acquisition
+(1\,673 events, 59\% recovered) behave alike despite differing almost threefold
+in $n$. What the estimator sees is the overlap.
 
 Two things follow. For anyone designing a multimodal study, the quantity to
 power on is the overlap, not the cohort: at these acquisition rates, detecting a
-given interaction needs roughly two and a half times the patients that the same
+given interaction needs roughly two and a half times the patients the same
 interaction would need if every test were universal, and no headline cohort size
 reveals that. For anyone reading one, an estimate of zero synergy from a
-modestly-sized cohort is weak evidence of absence. The error is at least in the
-safe direction -- it understates a test's value, so it cannot manufacture a
-reduction that is not there -- and the learning-curve extrapolation and the
-tree reference in Supplementary Table~S8 give two independent ways to tell
-"hard to reach" from "not present".
+modestly-sized cohort is weak evidence of absence -- in our own runs the
+synergistic regimes are called correctly at $n=50\,000$ and not at $n=18\,000$
+(Supplementary Table~S4). The error is at least in the safe direction: it
+understates a test's value, so it cannot manufacture a reduction that is not
+there. The learning-curve extrapolation, which lifts median recovery from
+\simRecovery\% to \simRecoveryCorrected\%, and the tree reference of
+Supplementary Table~S8 give two independent ways to tell "hard to reach" from
+"not present".
 
-We also checked that this is a statistical limit rather than an artefact of our
-predictor family. Giving the fusion head an explicit second-order term over the
+The fusion head used throughout carries an explicit second-order term over the
 modality tokens ($\sum_{m<m'} e_m \odot e_{m'}$, computable in $O(Md)$ by the
-factorization-machine identity) changes the picture very little, and a
-gradient-boosted-tree family fitted to the same folds recovers at most
-\powTreeSynMax\% of the synergistic terms -- more than the neural family on some
-settings, but subject to the same overlap constraint. The interaction path is
-kept because it is principled and costs nothing, not because it rescues the
-estimate.
+factorization-machine identity), on the principle that a family with no
+multiplicative path between two modalities cannot represent an interaction and
+should not be asked to measure one. We did not isolate its contribution: it was
+introduced together with a change to the training-mask distribution, and we
+report the pair rather than attribute the effect to either.
 
 We report three further diagnostics with every run, because each is a way the
 analysis could be quietly wrong. The null-model gap -- how far the network's
@@ -426,17 +440,26 @@ Table~\ref{tab:decomposition} all four endpoints at once. The structure is not a
 property of the modalities:
 
 \begin{itemize}
-\item For \textbf{30-day mortality}, the laboratory panel carries the largest
-  marginal value (\decLabsMarginal\ bits) but \decLabsRedFrac\% of it is
-  redundant with the rest of the panel; its conditional value is
-  \decLabsConditional\ bits. The electrocardiogram is close to worthless alone
-  (\decEcgMarginal\ bits) yet contributes \decEcgConditional\ bits in context --
-  \decEcgSynergistic\ bits of pure synergy.
-\item Across the \interNEndpoints\ endpoints, \interRegimeFlips\ modality pairs
-  \emph{change regime}: the same pair whose members substitute for one another
-  when predicting one outcome complement one another when predicting a different
-  one. The most redundant pair overall is
-  \interMostRedundantPair\ (\interMostRedundantBits\ bits of overlap).
+\item For \textbf{30-day mortality} the electrocardiogram is worth nothing on
+  its own (\decEcgMarginal\ bits, indistinguishable from zero) yet contributes
+  \decEcgConditional\ bits once every other test is in hand -- \decEcgSynergistic\
+  bits of pure synergy, $p=0.0002$. A single-modality study would have discarded
+  it. The laboratory panel is the reverse: the largest marginal value
+  (\decLabsMarginal\ bits) but \decLabsRedFrac\% of it already present in the
+  rest of the panel.
+\item The \textbf{same modality changes role between endpoints}. The chest
+  radiograph is largely redundant for acute kidney injury -- \decCxrAkiMarg\
+  bits alone, only \decCxrAkiCond\ once the laboratory panel is in hand -- and
+  synergistic for mortality (\decCxrMortalitySyn\ bits). The echocardiogram is
+  indistinguishable from useless for mortality, AKI and ICU transfer ($p>0.87$ in
+  each) and carries \decEchoHfReadmissionCond\ bits for heart-failure
+  readmission, of which \decEchoHfReadmissionSyn\ are synergistic with the
+  electrocardiogram.
+\item Consequently \textbf{how much testing can be avoided is a property of the
+  question, not of the hospital}: at matched discrimination the reduction runs
+  from \redHfReadmissionAvoided\% for heart-failure readmission, where almost
+  every test carries something the others do not, to \redAkiAvoided\% for acute
+  kidney injury, where the laboratory panel carries nearly all of it.
 \end{itemize}
 
 This is the empirical case against test panels defined per department rather
@@ -447,12 +470,14 @@ being used to inform.
 \subsection{The benefit of a test is concentrated in a minority of patients}
 
 Figure~\ref{fig:gains} shows the distribution of the per-patient prospective
-gain $\Delta_i(m\mid S_0)$. It is severely right-skewed for every modality:
-Gini coefficients range from \gainMinGini\ to \gainMaxGini, so a small minority
-of patients hold most of the benefit of any given test. For the
-electrocardiogram the mean gain is \gainEcgMean\ bits while the 99th percentile
-is \gainEcgPNinetynine\ bits, a factor of
-$\approx$\,$\gainEcgPNinetynine/\gainEcgMean$.
+gain $\Delta_i(m\mid S_0)$. It is right-skewed for every modality, with Gini
+coefficients from \gainMinGini\ to \gainMaxGini. The sharpest way to put it is in
+counts rather than moments: an electrocardiogram would move the risk estimate by
+more than 0.01 bits for only \gainEcgFracAbove\% of patients and an
+echocardiogram for \gainEchoFracAbove\%, against \gainLabsFracAbove\% for the
+laboratory panel. The electrocardiogram's mean gain is \gainEcgMean\ bits and its
+99th percentile \gainEcgPNinetynine, a factor of
+$\approx$\,\gainEcgConcentration.
 
 This concentration is what makes patient-level targeting worth doing at all: had
 the gain been uniform, no policy could beat a blanket one and the cohort average

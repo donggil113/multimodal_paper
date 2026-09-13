@@ -1,1 +1,22 @@
-\emph{(stage not yet run)}
+\begin{tabular}{lrrrrrrr}
+\toprule
+\textbf{n} & \textbf{complete} & \textbf{events with both} & \textbf{modality} & \textbf{true conditional} & \textbf{est conditional} & \textbf{true regime} & \textbf{est regime} \\
+\midrule
+18000 & False & 652 & labs & 0.0274 & 0.0177 & redundant & redundant \\
+18000 & False & 652 & ecg & 0.0239 & 0.0018 & synergistic & independent \\
+18000 & False & 652 & cxr & 0.0279 & 0.0040 & synergistic & redundant \\
+18000 & False & 652 & echo & 0.0000 & -0.0012 & independent & independent \\
+18000 & True & 1391 & labs & 0.0258 & 0.0187 & redundant & redundant \\
+18000 & True & 1391 & ecg & 0.0528 & 0.0197 & synergistic & synergistic \\
+18000 & True & 1391 & cxr & 0.0583 & 0.0261 & synergistic & synergistic \\
+18000 & True & 1391 & echo & 0.0001 & -0.0022 & independent & independent \\
+50000 & False & 1673 & labs & 0.0254 & 0.0222 & redundant & redundant \\
+50000 & False & 1673 & ecg & 0.0222 & 0.0133 & synergistic & synergistic \\
+50000 & False & 1673 & cxr & 0.0266 & 0.0156 & synergistic & synergistic \\
+50000 & False & 1673 & echo & 0.0000 & -0.0007 & independent & independent \\
+50000 & True & 3569 & labs & 0.0252 & 0.0226 & redundant & redundant \\
+50000 & True & 3569 & ecg & 0.0488 & 0.0391 & synergistic & synergistic \\
+50000 & True & 3569 & cxr & 0.0547 & 0.0465 & synergistic & synergistic \\
+50000 & True & 3569 & echo & 0.0001 & -0.0009 & independent & independent \\
+\bottomrule
+\end{tabular}

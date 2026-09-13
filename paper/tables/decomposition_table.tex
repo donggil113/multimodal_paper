@@ -1,1 +1,22 @@
-\emph{(stage not yet run)}
+\begin{tabular}{llrrrrr}
+\toprule
+\textbf{endpoint} & \textbf{modality} & \textbf{marginal} & \textbf{conditional} & \textbf{redundant} & \textbf{synergistic} & \textbf{p} \\
+\midrule
+aki\_7d & labs & 0.1186 & 0.1118 & 0.0068 & 0.0000 & 0.0002 \\
+aki\_7d & ecg & -0.0005 & -0.0014 & 0.0009 & 0.0000 & 1.0000 \\
+aki\_7d & cxr & 0.0086 & 0.0015 & 0.0071 & 0.0000 & 0.0046 \\
+aki\_7d & echo & -0.0005 & -0.0013 & 0.0009 & 0.0000 & 1.0000 \\
+hf\_readmission\_30d & labs & 0.0510 & 0.0235 & 0.0274 & 0.0000 & 0.0002 \\
+hf\_readmission\_30d & ecg & 0.0103 & 0.0145 & 0.0000 & 0.0042 & 0.0002 \\
+hf\_readmission\_30d & cxr & 0.0313 & 0.0026 & 0.0287 & 0.0000 & 0.0002 \\
+hf\_readmission\_30d & echo & 0.0087 & 0.0122 & 0.0000 & 0.0035 & 0.0002 \\
+icu\_transfer\_48h & labs & 0.0135 & 0.0137 & 0.0000 & 0.0002 & 0.0002 \\
+icu\_transfer\_48h & ecg & -0.0007 & -0.0003 & 0.0000 & 0.0003 & 0.8776 \\
+icu\_transfer\_48h & cxr & 0.0182 & 0.0200 & 0.0000 & 0.0017 & 0.0002 \\
+icu\_transfer\_48h & echo & -0.0002 & -0.0004 & 0.0003 & 0.0000 & 0.9838 \\
+mortality\_30d & labs & 0.0262 & 0.0222 & 0.0039 & 0.0000 & 0.0002 \\
+mortality\_30d & ecg & -0.0006 & 0.0133 & 0.0000 & 0.0139 & 0.0002 \\
+mortality\_30d & cxr & 0.0065 & 0.0156 & 0.0000 & 0.0092 & 0.0002 \\
+mortality\_30d & echo & -0.0002 & -0.0007 & 0.0004 & 0.0000 & 0.9966 \\
+\bottomrule
+\end{tabular}

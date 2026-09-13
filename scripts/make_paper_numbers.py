@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -23,6 +24,19 @@ def _fmt(x, nd=3):
     if v != v:
         return None
     return f"{v:.{nd}f}"
+
+
+def _epkey(name: str) -> str:
+    """CamelCase, digit-free key for an endpoint name.
+
+    LaTeX control sequences are letters only: ``\redMortality30dAvoided`` parses
+    as ``\redMortality`` followed by the text ``30dAvoided``, which fails in a
+    way whose error message points nowhere near the cause.
+    """
+    # drop whole tokens that begin with a digit ("30d", "7d", "48h"): stripping
+    # only the digits would leave "Mortalityd"
+    words = [w for w in name.split("_") if w and not w[0].isdigit()]
+    return re.sub(r"[^A-Za-z]", "", "".join(w.capitalize() for w in words))
 
 
 def _pct(x, nd=1):
@@ -43,7 +57,12 @@ REQUIRED = [
     "simRecoveryFullPanel", "simMeanAbsErr", "simRegimeMaxN",
     "simSynergyFirstN", "simRedundancyFirstN",
     "powBothFrac", "powEventsMin", "powEventsMax", "powSynMin", "powSynMax",
-    "powTreeSynMax",
+    "powTreeSynMax", "restrictedShareMin", "restrictedShareMax",
+    "redAvoidedMin", "redAvoidedMax",
+    "redIcuTransferAvoided", "redIcuTransferSaved", "redIcuTransferCert", "aurocIcuTransfer",
+    "redAkiAvoided", "redAkiSaved", "redAkiCert", "aurocAki",
+    "redHfReadmissionAvoided", "redHfReadmissionSaved", "redHfReadmissionCert", "aurocHfReadmission",
+    "redMortalityAvoided", "redMortalitySaved", "redMortalityCert", "aurocMortality",
     "cohortN", "cohortSubjects", "cohortSource", "primaryPrevalence",
     "primaryBaselineBits", "primaryFullBits", "primaryBaselineAuroc",
     "primaryFullAuroc", "primaryNullGap", "primaryIdentityRelErr",
@@ -62,7 +81,11 @@ for _m in MODALITIES:
     REQUIRED += [f"dec{_m}Marginal", f"dec{_m}Conditional", f"dec{_m}Redundant",
                  f"dec{_m}Synergistic", f"dec{_m}RedFrac",
                  f"gain{_m}Mean", f"gain{_m}PNinetynine", f"gain{_m}Gini",
-                 f"gain{_m}Concentration"]
+                 f"gain{_m}Concentration", f"gain{_m}FracAbove"]
+for _e in ("Mortality", "HfReadmission", "Aki", "IcuTransfer"):
+    for _m in MODALITIES:
+        REQUIRED += [f"dec{_m}{_e}Marg", f"dec{_m}{_e}Cond",
+                     f"dec{_m}{_e}Red", f"dec{_m}{_e}Syn"]
 
 
 class Macros:
@@ -211,6 +234,7 @@ def main() -> None:
             M.add(f"gain{key}PNinetynine", _fmt(g["p99_bits"], 4))
             M.add(f"gain{key}Gini", _fmt(g["gini"], 2))
             # the ratio, computed here rather than typeset as "a/b" in the text
+            M.add(f"gain{key}FracAbove", _pct(g.get("frac_above_0.01"), 1))
             M.add(f"gain{key}Concentration",
                   _fmt(g["p99_bits"] / max(g["mean_bits"], 1e-12), 0))
         if gains:
@@ -238,6 +262,45 @@ def main() -> None:
         M.add("interMostRedundantBits", _fmt(abs(worst["interaction_bits"]), 4))
 
     # ---- cross-endpoint contrast ---------------------------------------- #
+    per_ep = {}
+    for oc_dir in sorted((R / args.cohort_name).glob("*")):
+        sj = load_json(oc_dir / "summary.json")
+        dec = load_csv(oc_dir / "tables" / "decomposition.csv")
+        if sj is None or dec is None:
+            continue
+        per_ep[oc_dir.name] = (sj, dec[dec["context_kind"] == "leave_one_out"]
+                               .set_index("modality"))
+    if per_ep:
+        shares = []
+        for name, (sj, dec) in per_ep.items():
+            ic = sj.get("identity_check", {})
+            if ic.get("kl_bits"):
+                shares.append(ic["restricted_bits"] / ic["kl_bits"])
+            red = sj.get("reduction", {})
+            key = _epkey(name)
+            M.add(f"red{key}Avoided", _pct(red.get("tests_avoided"), 0))
+            M.add(f"red{key}Saved", _fmt(red.get("cost_saved"), 0))
+            M.add(f"red{key}Cert", _fmt(red.get("max_certified_nb_loss"), 4))
+            M.add(f"auroc{key}", _fmt(sj["information"]["full_panel_auroc"], 3))
+            for mod in ("labs", "ecg", "cxr", "echo"):
+                if mod in dec.index:
+                    r = dec.loc[mod]
+                    mk = mod.capitalize()
+                    M.add(f"dec{mk}{key}Marg", _fmt(r["marginal_bits"], 4))
+                    M.add(f"dec{mk}{key}Cond", _fmt(r["conditional_bits"], 4))
+                    M.add(f"dec{mk}{key}Red", _fmt(r["redundant_bits"], 4))
+                    M.add(f"dec{mk}{key}Syn", _fmt(r["synergistic_bits"], 4))
+        if shares:
+            M.add("restrictedShareMin", f"{100 * min(shares):.0f}")
+            M.add("restrictedShareMax", f"{100 * max(shares):.0f}")
+        avoided = [sj.get("reduction", {}).get("tests_avoided")
+                   for sj, _ in per_ep.values()]
+        avoided = [a for a in avoided if a is not None]
+        if avoided:
+            M.add("redAvoidedMin", f"{100 * min(avoided):.0f}")
+            M.add("redAvoidedMax", f"{100 * max(avoided):.0f}")
+
+
     rows = []
     for oc_dir in sorted((R / args.cohort_name).glob("*")):
         im = oc_dir / "tables" / "interaction_map.csv"
