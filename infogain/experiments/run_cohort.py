@@ -297,6 +297,37 @@ def analyse(cohort: Cohort, cfg: AnalysisConfig, out_dir: Path) -> dict:
     return summary
 
 
+def load_config(path: str | Path) -> AnalysisConfig:
+    """Build an :class:`AnalysisConfig` from ``configs/analysis.yaml``.
+
+    A settings file that documents the defaults but is never read is worse than
+    no settings file: it drifts from the code and then misleads the next reader
+    about what was actually run. This makes ``configs/analysis.yaml`` the real
+    source of truth, with CLI flags overriding it.
+    """
+    from infogain.utils.io import load_yaml
+
+    raw = load_yaml(path) or {}
+    fam_raw = dict((raw.get("train") or {}).get("family") or {})
+    train_raw = {k: v for k, v in (raw.get("train") or {}).items() if k != "family"}
+    if "seeds" in train_raw:
+        train_raw["seeds"] = tuple(train_raw["seeds"])
+    cost_mode = raw.get("cost_mode", "money")
+    cfg = AnalysisConfig(
+        outcome=raw.get("outcome", "mortality_30d"),
+        train=TrainConfig(family=FamilyConfig(**fam_raw), **train_raw),
+        gain=GainConfig(**(raw.get("gain") or {})),
+        threshold_window=tuple(raw.get("threshold_window", (0.02, 0.30))),
+        decision_thresholds=tuple(raw.get("decision_thresholds",
+                                          (0.02, 0.05, 0.10, 0.20))),
+        cost_weights={"money": CostWeights.money_only(),
+                      "throughput": CostWeights.throughput_limited(),
+                      "harm": CostWeights.harm_averse()}[cost_mode],
+        seed=int(raw.get("seed", 0)),
+    )
+    return cfg
+
+
 def _quick(cfg: AnalysisConfig) -> AnalysisConfig:
     cfg.train = TrainConfig(epochs=25, n_folds=3, seeds=(0,), patience=8,
                             min_epochs=8, family=FamilyConfig())
@@ -307,6 +338,8 @@ def _quick(cfg: AnalysisConfig) -> AnalysisConfig:
 def main() -> None:  # pragma: no cover - CLI
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--cohort", required=True, help="directory written by Cohort.save")
+    ap.add_argument("--config", default="configs/analysis.yaml",
+                    help="YAML settings; CLI flags override it")
     ap.add_argument("--outcome", default="mortality_30d")
     ap.add_argument("--out", default=None)
     ap.add_argument("--epochs", type=int, default=None)
@@ -323,9 +356,17 @@ def main() -> None:  # pragma: no cover - CLI
     args = ap.parse_args()
 
     cohort = Cohort.load(args.cohort)
-    cfg = AnalysisConfig(outcome=args.outcome, seed=args.seed,
-                         make_figures=not args.no_figures,
-                         sequential=args.sequential)
+    cfg_path = Path(args.config)
+    if cfg_path.exists():
+        cfg = load_config(cfg_path)
+        log.info("loaded settings from %s", cfg_path)
+    else:
+        log.warning("%s not found; using built-in defaults", cfg_path)
+        cfg = AnalysisConfig()
+    cfg.outcome = args.outcome
+    cfg.seed = args.seed
+    cfg.make_figures = not args.no_figures
+    cfg.sequential = args.sequential
     if args.quick:
         cfg = _quick(cfg)
     if args.epochs:

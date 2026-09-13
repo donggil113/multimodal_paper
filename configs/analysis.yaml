@@ -1,4 +1,10 @@
 # Estimation and analysis settings for `infogain.experiments.run_cohort`.
+#
+# This file is READ, not decoration: `run_cohort --config configs/analysis.yaml`
+# (the default) builds its AnalysisConfig from it, and CLI flags override
+# individual fields. `scripts/run_all.py` passes --folds 4 --seeds 2 to keep the
+# full four-endpoint suite inside a few hours on a small machine; the values
+# below are what a final run should use.
 
 train:
   epochs: 130

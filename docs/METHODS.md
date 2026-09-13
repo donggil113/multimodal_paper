@@ -80,6 +80,14 @@ interaction terms that carry synergy, which are exactly the terms of interest.
 **Why donors come only from training folds.** Otherwise a patient can donate a
 counterfactual test result to themselves, and the per-patient score leaks.
 
+## Settings
+
+`configs/analysis.yaml` is loaded by `run_cohort` (via `--config`, defaulting to
+that path) and CLI flags override individual fields. `configs/cohort_mimic.yaml`
+documents the extraction settings; pass them to `infogain.data.mimic_cohort` as
+flags. `configs/costs_usd.yaml` and `configs/costs_template_local.yaml` are
+price lists — see the cost-model note above.
+
 ## Extending
 
 **Add a modality.** Write an extractor returning a `ModalityBlock` (values,
