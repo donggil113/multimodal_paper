@@ -116,19 +116,37 @@ def bootstrap_ci(x: np.ndarray, alpha: float = 0.05, n_boot: int = 4000,
 
 
 def paired_permutation_pvalue(a: np.ndarray, b: np.ndarray, n_perm: int = 10000,
-                              seed: int = 0, alternative: str = "greater") -> float:
-    """Sign-flip permutation test for ``mean(a - b) > 0`` (paired PVI gains)."""
+                              seed: int = 0, alternative: str = "greater",
+                              max_elements: int = 20_000_000) -> float:
+    """Sign-flip permutation test for ``mean(a - b) > 0`` (paired PVI gains).
+
+    Permutations are drawn in blocks rather than all at once.  The obvious
+    implementation allocates an ``(n_perm, n)`` matrix, which at 5000
+    permutations and a 50\,000-patient cohort is 2 GB before the elementwise
+    product doubles it -- enough to push a machine into swap in the middle of an
+    analysis.  ``max_elements`` caps each block at roughly 160 MB; the test is
+    statistically identical, only the RNG stream differs.
+    """
     d = np.asarray(a, dtype=np.float64) - np.asarray(b, dtype=np.float64)
+    n = d.size
+    if n == 0:
+        return 1.0
     obs = float(d.mean())
     rng = np.random.default_rng(seed)
-    signs = rng.choice([-1.0, 1.0], size=(n_perm, d.size))
-    null = (signs * d).mean(axis=1)
-    if alternative == "greater":
-        hits = int((null >= obs).sum())
-    elif alternative == "less":
-        hits = int((null <= obs).sum())
-    else:
-        hits = int((np.abs(null) >= abs(obs)).sum())
+    block = max(1, min(n_perm, int(max_elements // max(n, 1))))
+    hits = 0
+    done = 0
+    while done < n_perm:
+        k = min(block, n_perm - done)
+        signs = rng.integers(0, 2, size=(k, n)).astype(np.float64) * 2.0 - 1.0
+        null = signs @ d / n
+        if alternative == "greater":
+            hits += int((null >= obs).sum())
+        elif alternative == "less":
+            hits += int((null <= obs).sum())
+        else:
+            hits += int((np.abs(null) >= abs(obs)).sum())
+        done += k
     return (hits + 1) / (n_perm + 1)
 
 
