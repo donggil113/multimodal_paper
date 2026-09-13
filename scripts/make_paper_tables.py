@@ -110,16 +110,26 @@ def main() -> None:
     reg = R / "simulation" / "tables" / "regime_recovery.csv"
     if reg.exists():
         df = pd.read_csv(reg)
-        keep = ["modality", "true_marginal", "est_marginal", "true_conditional",
+        keep = ["n", "modality", "true_marginal", "est_marginal", "true_conditional",
                 "est_conditional", "true_regime", "est_regime", "regime_correct"]
         df = df[[c for c in keep if c in df.columns]]
         df = df.rename(columns={"true_marginal": "true $I_m$", "est_marginal": "est $I_m$",
                                 "true_conditional": "true $U$", "est_conditional": "est $U$",
                                 "true_regime": "true regime", "est_regime": "est regime",
                                 "regime_correct": "correct"})
-        write(df, out / "regime_table.tex", align="lrrrrllc")
+        write(df, out / "regime_table.tex",
+              align="r" + "l" + "rrrr" + "llc" if "n" in df.columns else "lrrrrllc")
     else:
         write(None, out / "regime_table.tex")
+
+    # S3b: first cohort size at which each regime is called correctly
+    fc = R / "simulation" / "tables" / "regime_first_correct.csv"
+    if fc.exists():
+        df = pd.read_csv(fc)
+        df.columns = [c.replace("_", " ") for c in df.columns]
+        write(df, out / "regime_first_correct_table.tex")
+    else:
+        write(None, out / "regime_first_correct_table.tex")
 
     # S4 prospective vs retrospective
     cons = base / "tables" / "gain_consistency.csv"

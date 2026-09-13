@@ -255,7 +255,7 @@ def test_simulator_makes_pure_synergy(small_cohort):
     """ecg and cxr each carry a factor that only matters in combination."""
     _, gt = small_cohort
     base = {"demographics", "vitals"}
-    d = gt.decompose("mortality_30d", "ecg", set(gt.design.modalities) - {"ecg"},
+    d = gt.decompose("mortality_30d", "ecg", set(gt.design.modality_names) - {"ecg"},
                      base, respect_observation=False)
     assert d["conditional"] > d["marginal"]
     assert d["synergistic"] > 0 and d["redundant"] == 0

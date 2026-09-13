@@ -371,11 +371,19 @@ directions -- our raw table shows 180\% ``recovery'' on a subset genuinely worth
 over \emph{all} subsets, which is well behaved at zero, is
 \simMeanAbsErr\ bits.
 
-Second, and more important for deployment, \textbf{the qualitative call is right
-long before the bits are}: the estimator assigned the correct regime
-(redundant / synergistic / independent) to \simRegimeAccuracy\% of modalities at
-realistic cohort sizes. A hospital deciding whether a test is worth ordering
-needs the sign and the ordering, not the fourth decimal place.
+Second, \textbf{the qualitative call -- redundant, synergistic or independent --
+is recovered before the bits are, and the sample size it takes is measurable}.
+At the largest simulated cohort the estimator assigns the correct regime to
+\simRegimeAccuracy\% of modalities, and the accuracy rises with cohort size in a
+way that is itself the useful result: redundancy is called correctly first,
+because it is a main effect; synergy last, because it is an interaction between
+latent factors buried in two different noisy read-outs, and interactions need
+events. Table~S3 gives, for each modality, the smallest cohort at which its
+regime is first called correctly, against the size of the effect being detected
+-- a planning number for anyone designing such a study, and one we measure
+rather than assert. A hospital deciding whether a test is worth ordering needs
+the sign and the ordering, not the fourth decimal place; our results say what
+that costs.
 
 We report three further diagnostics with every run, because each is a way the
 analysis could be quietly wrong. The null-model gap -- how far the network's

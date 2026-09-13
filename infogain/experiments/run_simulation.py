@@ -106,40 +106,82 @@ def add_extrapolation(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def qualitative_study(n: int = 24000, outcome: str = "mortality_30d", seed: int = 0,
-                      train: TrainConfig | None = None) -> pd.DataFrame:
-    """Does the estimated decomposition agree with the known regime per modality?"""
+def regime_of(marginal: float, conditional: float, tol: float = 0.002) -> str:
+    """Label a modality redundant, synergistic or independent given a tolerance."""
+    if conditional - marginal > tol:
+        return "synergistic"
+    if marginal - conditional > tol:
+        return "redundant"
+    return "independent"
+
+
+def qualitative_study(sizes=(6000, 18000, 50000), outcome: str = "mortality_30d",
+                      seed: int = 0, train: TrainConfig | None = None,
+                      tol: float = 0.002) -> pd.DataFrame:
+    r"""Does the estimated decomposition recover the known regime, and at what cost?
+
+    Reported as a function of cohort size rather than at one size, because the
+    answer is not a constant and the variation is the useful part.  Getting the
+    bits right is hard; getting the *call* right -- redundant, synergistic,
+    independent -- is what a hospital deciding whether to order a test actually
+    needs, and it happens at a smaller sample size.  How much smaller, and how
+    that depends on the size of the effect, is a planning number for anyone
+    designing such a study, so we measure it instead of asserting it.
+
+    Synergistic terms are the last to be recovered: a marginal effect is a main
+    effect, while synergy is an interaction between latent factors buried in two
+    different noisy read-outs, and interactions need more events.
+    """
     train = train or TrainConfig(epochs=110, n_folds=4, seeds=(0, 1), patience=18)
-    cohort, gt = generate(n=n, seed=seed)
-    cf = fit_family(cohort, outcome, train)
-    est = decomposition_table(cf).set_index("modality")
-    truth = ground_truth_table(gt, outcome, baseline=sorted(cohort.spec.baseline),
-                               respect_observation=True).set_index("modality")
-
-    def regime(marg: float, cond: float, tol: float = 0.002) -> str:
-        if cond - marg > tol:
-            return "synergistic"
-        if marg - cond > tol:
-            return "redundant"
-        return "independent"
-
     rows = []
-    for m in est.index:
-        if m not in truth.index:
-            continue
-        t, e = truth.loc[m], est.loc[m]
-        rows.append({
-            "modality": m,
-            "true_marginal": t["marginal"], "est_marginal": e["marginal_bits"],
-            "true_conditional": t["conditional"], "est_conditional": e["conditional_bits"],
-            "true_redundant": t["redundant"], "est_redundant": e["redundant_bits"],
-            "true_synergistic": t["synergistic"], "est_synergistic": e["synergistic_bits"],
-            "true_regime": regime(t["marginal"], t["conditional"]),
-            "est_regime": regime(e["marginal_bits"], e["conditional_bits"]),
-        })
+    for n in sizes:
+        cohort, gt = generate(n=n, seed=seed)
+        t0 = time.time()
+        cf = fit_family(cohort, outcome, train)
+        log.info("regime study n=%d fitted in %.0fs", n, time.time() - t0)
+        est = decomposition_table(cf).set_index("modality")
+        truth = ground_truth_table(gt, outcome, baseline=sorted(cohort.spec.baseline),
+                                   respect_observation=True).set_index("modality")
+        for m in est.index:
+            if m not in truth.index:
+                continue
+            t, e = truth.loc[m], est.loc[m]
+            rows.append({
+                "n": n, "modality": m,
+                "true_marginal": t["marginal"], "est_marginal": e["marginal_bits"],
+                "true_conditional": t["conditional"],
+                "est_conditional": e["conditional_bits"],
+                "true_redundant": t["redundant"], "est_redundant": e["redundant_bits"],
+                "true_synergistic": t["synergistic"],
+                "est_synergistic": e["synergistic_bits"],
+                "true_regime": regime_of(t["marginal"], t["conditional"], tol),
+                "est_regime": regime_of(e["marginal_bits"], e["conditional_bits"], tol),
+            })
     out = pd.DataFrame(rows)
     out["regime_correct"] = out["true_regime"] == out["est_regime"]
     return out
+
+
+def regime_accuracy_by_size(qual: pd.DataFrame) -> pd.DataFrame:
+    """Accuracy per cohort size, overall and split by the true regime."""
+    overall = qual.groupby("n")["regime_correct"].mean().rename("all")
+    by_regime = (qual.pivot_table(index="n", columns="true_regime",
+                                  values="regime_correct", aggfunc="mean"))
+    return pd.concat([overall, by_regime], axis=1).reset_index()
+
+
+def first_correct_size(qual: pd.DataFrame) -> pd.DataFrame:
+    """Smallest cohort size at which each modality's regime is called correctly."""
+    rows = []
+    for m, g in qual.groupby("modality"):
+        g = g.sort_values("n")
+        hit = g[g["regime_correct"]]
+        rows.append({"modality": m,
+                     "true_regime": g["true_regime"].iloc[-1],
+                     "true_effect_bits": float(abs(g["true_conditional"].iloc[-1]
+                                                   - g["true_marginal"].iloc[-1])),
+                     "first_correct_n": int(hit["n"].iloc[0]) if len(hit) else -1})
+    return pd.DataFrame(rows).sort_values("true_effect_bits", ascending=False)
 
 
 def theorem_study_exact(n: int = 60000, outcome: str = "mortality_30d",
@@ -206,7 +248,11 @@ def summarize(rec: pd.DataFrame, qual: pd.DataFrame, thm: dict,
         "recovery_full_panel": float(
             big.loc[big["size"].idxmax(), "recovered"]) if len(big) else float("nan"),
         "mean_abs_error_bits": float((big["est_bits"] - big["truth_bits"]).abs().mean()),
-        "regime_accuracy": float(qual["regime_correct"].mean()),
+        "regime_accuracy": float(
+            qual[qual["n"] == qual["n"].max()]["regime_correct"].mean()),
+        "regime_accuracy_by_size": regime_accuracy_by_size(qual).to_dict("records"),
+        "regime_first_correct": first_correct_size(qual).to_dict("records"),
+        "regime_max_n": int(qual["n"].max()),
         "regime_table": qual.to_dict("records"),
         "theorem1_all_hold": bool(all(r["holds"] for r in thm["theorem1"])),
         "theorem2_all_hold": bool(all(r["holds"] for r in thm["theorem2"])),
@@ -234,7 +280,7 @@ def main() -> None:  # pragma: no cover - CLI
     ap.add_argument("--out", default="results/simulation")
     ap.add_argument("--outcome", default="mortality_30d")
     ap.add_argument("--sizes", default="4000,12000,36000")
-    ap.add_argument("--qual-n", type=int, default=24000)
+    ap.add_argument("--qual-sizes", default="6000,18000,50000")
     ap.add_argument("--exact-n", type=int, default=60000)
     ap.add_argument("--epochs", type=int, default=110)
     ap.add_argument("--folds", type=int, default=4)
@@ -261,15 +307,18 @@ def main() -> None:  # pragma: no cover - CLI
     if args.quick:
         sizes = (2000, 5000, 10000)
         train = TrainConfig(epochs=25, n_folds=3, seeds=(0,), patience=8, min_epochs=8)
-        args.qual_n, args.exact_n = 6000, 15000
+        args.qual_sizes, args.exact_n = "2000,5000", 15000
 
     log.info("== recovery study ==")
     rec = add_extrapolation(recovery_study(sizes, args.outcome, args.seed, train))
     rec.to_csv(out / "tables" / "recovery.csv", index=False)
 
     log.info("== qualitative regime study ==")
-    qual = qualitative_study(args.qual_n, args.outcome, args.seed, train)
+    qual_sizes = tuple(int(x) for x in args.qual_sizes.split(","))
+    qual = qualitative_study(qual_sizes, args.outcome, args.seed, train)
     qual.to_csv(out / "tables" / "regime_recovery.csv", index=False)
+    regime_accuracy_by_size(qual).to_csv(out / "tables" / "regime_by_size.csv", index=False)
+    first_correct_size(qual).to_csv(out / "tables" / "regime_first_correct.csv", index=False)
 
     log.info("== exact theorem checks ==")
     thm = theorem_study_exact(args.exact_n, args.outcome, args.seed)
@@ -278,6 +327,9 @@ def main() -> None:  # pragma: no cover - CLI
 
     save(F.fig_recovery(rec, f"simulation: recovering known information ({args.outcome})"),
          out / "figures" / "figS1_recovery", table=rec)
+    save(F.fig_regime_recovery(regime_accuracy_by_size(qual), first_correct_size(qual),
+                               "simulation: recovering the decomposition's sign"),
+         out / "figures" / "figS2_regime", table=qual)
 
     summary = summarize(rec, qual, thm, sizes, args.outcome)
     save_json(summary, out / "summary.json")
@@ -289,7 +341,10 @@ def main() -> None:  # pragma: no cover - CLI
           f"{summary['recovery_at_largest_n']:.1%}"
           f"  (after learning-curve correction: "
           f"{summary['recovery_after_correction']:.1%})")
-    print(f"regime accuracy: {summary['regime_accuracy']:.0%}   "
+    print(regime_accuracy_by_size(qual).round(2).to_string(index=False))
+    print(first_correct_size(qual).to_string(index=False))
+    print(f"regime accuracy at n={summary['regime_max_n']}: "
+          f"{summary['regime_accuracy']:.0%}   "
           f"Thm1 holds: {summary['theorem1_all_hold']}   "
           f"Thm2 holds: {summary['theorem2_all_hold']}   "
           f"Thm3 rel err: {thm['theorem3']['rel_error']:.2e}")

@@ -313,6 +313,66 @@ def fig_recovery(df: pd.DataFrame, title: str = "", figsize=(6.8, 3.0),
     return fig
 
 
+def fig_regime_recovery(by_size: pd.DataFrame, first_correct: pd.DataFrame,
+                        title: str = "", figsize=(6.8, 3.0)) -> plt.Figure:
+    """How much data it takes to call a modality's regime correctly.
+
+    The left panel is the headline: the *sign* of the decomposition is recovered
+    at a smaller cohort than the bits are, and redundancy (a main effect) is
+    recovered before synergy (an interaction). The right panel turns that into a
+    planning number -- effect size against the cohort needed to see it.
+    """
+    apply_style()
+    fig, axes = plt.subplots(1, 2, figsize=figsize)
+
+    ax = axes[0]
+    cols = [c for c in by_size.columns if c != "n"]
+    order = ["all", "redundant", "synergistic", "independent"]
+    cols = [c for c in order if c in cols] + [c for c in cols if c not in order]
+    # a regime keeps the same colour in both panels: colour follows the entity
+    regime_colour = {"redundant": ROLE["redundant"], "synergistic": ROLE["synergistic"],
+                     "independent": INK_MUTED}
+    for c in cols:
+        style = (dict(linewidth=2.4, color=INK, zorder=6) if c == "all"
+                 else dict(color=regime_colour.get(c, CATEGORICAL[0]),
+                           linestyle=(0, (5, 2)) if c == "independent" else "-"))
+        ax.plot(by_size["n"], 100 * by_size[c], marker="o", markersize=3.6,
+                label=c, **style)
+    ax.axhline(100, color=INK_MUTED, linestyle=(0, (3, 3)), linewidth=1.2)
+    ax.set_xscale("log")
+    ax.set_ylim(-4, 108)
+    ax.set_xlabel("cohort size")
+    ax.set_ylabel("% of modalities given the right regime")
+    ax.legend(loc="lower right", fontsize=7)
+    despine(ax)
+
+    ax = axes[1]
+    fc = first_correct[first_correct["first_correct_n"] > 0].copy()
+    missed = first_correct[first_correct["first_correct_n"] <= 0]
+    if len(fc):
+        for reg, g in fc.groupby("true_regime"):
+            ax.scatter(g["true_effect_bits"], g["first_correct_n"], s=46,
+                       color=regime_colour.get(reg, CATEGORICAL[0]), label=reg,
+                       edgecolor=SURFACE, linewidth=0.8, zorder=5)
+        for _, r in fc.iterrows():
+            ax.annotate(r["modality"], (r["true_effect_bits"], r["first_correct_n"]),
+                        fontsize=6.5, color=INK_SECONDARY,
+                        xytext=(5, -2), textcoords="offset points")
+    ax.set_xlabel(r"effect size $|U(m\mid S) - I_m|$ (bits)")
+    ax.set_ylabel("cohort needed to call it")
+    ax.set_yscale("log")
+    if len(missed):
+        ax.text(0.02, 0.04, f"{len(missed)} never called correctly at any size tested",
+                transform=ax.transAxes, fontsize=6.5, color=INK_SECONDARY)
+    if len(fc):
+        ax.legend(loc="lower right", fontsize=7)
+    despine(ax)
+    if title:
+        fig.suptitle(title, x=0.01, ha="left", fontsize=10, fontweight="bold")
+    fig.tight_layout()
+    return fig
+
+
 # --------------------------------------------------------------------------- #
 # Fig 7: the information <-> net-benefit identity
 # --------------------------------------------------------------------------- #

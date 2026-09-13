@@ -691,10 +691,20 @@ below, as a computationally bounded quantity must.}
 
 \begin{table}[htbp]\centering\small
 \caption{Regime recovery: true against estimated decomposition regime
-(redundant / synergistic / independent) per modality. Accuracy
-\simRegimeAccuracy\%.}
+(redundant / synergistic / independent) per modality and cohort size. Accuracy
+at the largest cohort is \simRegimeAccuracy\%. Redundancy, a main effect, is
+recovered first; synergy, an interaction across two noisy read-outs, last.}
 \label{tab:s-regime}
 \input{tables/regime_table}
+\end{table}
+
+\begin{table}[htbp]\centering\small
+\caption{Smallest cohort at which each modality's regime is called correctly,
+against the size of the effect being detected. This is the planning number: it
+says what it costs to be able to tell a redundant test from a synergistic one at
+a given effect size.}
+\label{tab:s-firstcorrect}
+\input{tables/regime_first_correct_table}
 \end{table}
 
 \begin{table}[htbp]\centering\small
@@ -719,6 +729,31 @@ diagnostics.}
 \label{tab:s-lattice}
 \input{tables/lattice_table}
 \end{table}
+
+% ===================================================================== %
+\clearpage
+\section{Supplementary figures}
+
+\begin{figure}[htbp]\centering
+\infogainfig[\textwidth]{figS1_recovery}
+\caption{\textbf{Recovering known information.} Left: estimated against exact
+information at the largest simulated cohort, before and after learning-curve
+correction. Right: fraction recovered against cohort size, over subsets whose
+true information exceeds 0.01 bits. The estimator approaches the truth from
+below, as a computationally bounded quantity must.}
+\label{fig:s-recovery}
+\end{figure}
+
+\begin{figure}[htbp]\centering
+\infogainfig[\textwidth]{figS2_regime}
+\caption{\textbf{Recovering the decomposition's sign.} Left: share of
+modalities assigned the correct regime against cohort size, overall and split by
+the true regime. Redundancy is a main effect and is recovered first; synergy is
+an interaction between latent factors in two different noisy read-outs and is
+recovered last. Right: the same information as a planning number -- effect size
+against the cohort needed to detect it.}
+\label{fig:s-regime}
+\end{figure}
 
 \bibliographystyle{unsrtnat}
 \bibliography{refs}

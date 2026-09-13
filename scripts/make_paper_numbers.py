@@ -40,7 +40,8 @@ REQUIRED = [
     "simRecovery", "simRecoveryCorrected", "simRegimeAccuracy", "simMaxN",
     "simThmOneHolds", "simThmTwoHolds", "simThmThreeRelErr",
     "simRecoveryFloor", "simSubsetsScored", "simSubsetsBelowFloor",
-    "simRecoveryFullPanel", "simMeanAbsErr",
+    "simRecoveryFullPanel", "simMeanAbsErr", "simRegimeMaxN",
+    "simSynergyFirstN", "simRedundancyFirstN",
     "cohortN", "cohortSubjects", "cohortSource", "primaryPrevalence",
     "primaryBaselineBits", "primaryFullBits", "primaryBaselineAuroc",
     "primaryFullAuroc", "primaryNullGap", "primaryIdentityRelErr",
@@ -144,6 +145,19 @@ def main() -> None:
         M.add("simSubsetsBelowFloor", sim.get("n_subsets_below_floor"))
         M.add("simRecoveryFullPanel", _pct(sim.get("recovery_full_panel")))
         M.add("simMeanAbsErr", _fmt(sim.get("mean_abs_error_bits"), 4))
+        M.add("simRegimeMaxN", f"{sim.get('regime_max_n', 0):,}".replace(",", "{,}")
+              if sim.get("regime_max_n") else None)
+        fc = sim.get("regime_first_correct") or []
+        syn = [r for r in fc if r.get("true_regime") == "synergistic"
+               and r.get("first_correct_n", -1) > 0]
+        red = [r for r in fc if r.get("true_regime") == "redundant"
+               and r.get("first_correct_n", -1) > 0]
+        M.add("simSynergyFirstN",
+              f"{min(r['first_correct_n'] for r in syn):,}".replace(",", "{,}")
+              if syn else None)
+        M.add("simRedundancyFirstN",
+              f"{min(r['first_correct_n'] for r in red):,}".replace(",", "{,}")
+              if red else None)
 
     # ---- primary endpoint ------------------------------------------------ #
     base = R / args.cohort_name / args.primary
