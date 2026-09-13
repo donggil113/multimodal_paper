@@ -527,8 +527,14 @@ absence of signal, but the estimate remains a lower bound. Our headline
 modality representations are deliberately interpretable -- electrocardiogram
 interval measurements and CheXpert labels rather than raw waveforms and pixels --
 which makes the decomposition auditable by a clinician at the cost of some
-usable information; the raw-signal path is implemented and its comparison is
-reported in Supplementary~\S8. MIMIC-IV is a single academic centre in one
+usable information; the raw-signal path is implemented, and quantifying what
+that costs requires the full waveform and image download (Supplementary~\S8).
+Relatedly, synergistic terms are the last to become detectable as a cohort
+grows, so a small study will report a synergistic test as independent. The error
+is conservative -- it understates a test's value rather than overstating it, and
+so cannot manufacture a reduction that is not there -- but it is an error, and
+Supplementary Table~S4 says how large a cohort avoids it at a given effect
+size. MIMIC-IV is a single academic centre in one
 country, its test-ordering culture is its own, and the cost figures are US list
 prices; the frontier is therefore reported in full so that a reader with a
 different fee schedule can read off their own operating point. Finally, a
@@ -539,10 +545,12 @@ the sociotechnical consequences of changing what clinicians are asked to do.
 \paragraph{Outlook.} The natural next step is prospective: the per-patient score
 is computable at the moment of the ordering decision, from data already in the
 record, which makes a stepped-wedge evaluation feasible without any new
-instrumentation. The same machinery applies unchanged to sequential acquisition,
-where re-scoring after each result is exactly where redundancy makes the
-difference, and to settings where the binding constraint is time or access
-rather than money -- a substitution of one line in the cost model.
+instrumentation. Sequential acquisition is implemented and is where redundancy
+should pay off most: re-scoring after each result is what lets a policy see that
+the second of two overlapping tests has stopped being worth anything \emph{for
+this patient}, which a one-shot policy scored against the free baseline cannot.
+Settings where the binding constraint is turnaround time or access rather than
+money need only a different line in the cost model.
 
 % ===================================================================== %
 \section{Methods}
