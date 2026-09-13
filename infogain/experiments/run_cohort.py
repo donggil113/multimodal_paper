@@ -183,6 +183,7 @@ def analyse(cohort: Cohort, cfg: AnalysisConfig, out_dir: Path) -> dict:
             float((cf.pvi(full) - cf.pvi(ctx)).mean()), prev)
         thm1_rows.append({"modality": m, "bound": b.bound,
                           "observed_gain": b.observed_gain,
+                          "achievable_gain": b.achievable_gain,
                           "auroc_context": b.auroc_coarse, "auroc_full": b.auroc_fine,
                           "n_bins": b.n_bins,
                           "info_only_auroc_floor": lo_b - 0.5,
@@ -198,7 +199,15 @@ def analyse(cohort: Cohort, cfg: AnalysisConfig, out_dir: Path) -> dict:
             thm2_rows.append({"modality": m, "threshold": t,
                               "forgone_bits": forgone,
                               "certified_nb_loss": safe_omission_bound_local(forgone, t),
+                              # the information component, the one Theorem 2
+                              # bounds: evaluated between the full model and its
+                              # projection onto the reduced model's ranking
                               "observed_nb_loss": float(
+                                  empirical_net_benefit(y, cf.p(full), np.array([t]))[0]
+                                  - empirical_net_benefit(
+                                      y, nest_calibrate(cf.p(full), cf.p(ctx)),
+                                      np.array([t]))[0]),
+                              "deployed_nb_loss": float(
                                   empirical_net_benefit(y, cf.p(full), np.array([t]))[0]
                                   - empirical_net_benefit(y, cf.p(ctx), np.array([t]))[0])})
     pd.DataFrame(thm2_rows).to_csv(out_dir / "tables" / "theorem2_bounds.csv", index=False)

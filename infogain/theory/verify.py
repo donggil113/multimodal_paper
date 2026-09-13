@@ -71,17 +71,19 @@ def verify_safe_omission(n_trials: int = 400, n: int = 20000,
 
 
 def verify_theorem1(n_trials: int = 300, n: int = 8000,
-                    seed: int = 0) -> tuple[LemmaReport, LemmaReport]:
+                    seed: int = 0) -> tuple[LemmaReport, LemmaReport, LemmaReport]:
     r"""Check Theorem 1's stratified bound.
 
-    Two claims are tested: (i) the certified bound never exceeds the achievable
-    gain, proxied by the hull AUROC of the fine model minus the coarse AUROC;
-    (ii) on *synergy-dominated* problems the bound is strictly positive where the
-    naive difference of marginal AUROCs is not, which is the whole point of
-    reporting it.
+Three claims are tested.  (i) The bound never exceeds the gain demonstrably
+    achievable on the same rows.  (ii) The bound *equals* the AUROC gain of the
+    lexicographic witness score -- this is the theorem's actual content, an
+    identity, and checking it to machine precision is a far stronger test than
+    checking the inequality it implies.  (iii) On synergy-dominated problems the
+    bound is strictly positive, which is the whole point of reporting it.
     """
     rng = np.random.default_rng(seed)
     worst = np.inf
+    worst_identity = 0.0
     violated = 0
     n_informative = 0
     for _ in range(n_trials):
@@ -99,11 +101,13 @@ def verify_theorem1(n_trials: int = 300, n: int = 8000,
         eta_c = 1.0 / (1.0 + np.exp(-(rng.uniform(0.0, 1.5) * a - 1.5)))
         eta_f = p
         bnd = best_stratified_bound(y, eta_c, eta_f)
-        achievable_gain = auroc_hull(y, eta_f) - auroc(y, eta_c)
-        worst = min(worst, achievable_gain - bnd.bound)
-        violated += int(achievable_gain - bnd.bound < -1e-9)
+        worst = min(worst, bnd.achievable_gain - bnd.bound)
+        violated += int(bnd.achievable_gain - bnd.bound < -1e-9)
+        worst_identity = max(worst_identity, abs(bnd.identity_residual))
         n_informative += int(bnd.bound > 0.005)
     return (LemmaReport("Thm1 bound <= achievable gain", n_trials, float(worst), violated),
+            LemmaReport("Thm1 witness identity (bound == lex gain)", n_trials,
+                        -float(worst_identity), int(worst_identity > 1e-9)),
             LemmaReport("Thm1 bound informative (>0.005 AUROC)", n_trials,
                         float(n_informative) / max(n_trials, 1), 0))
 

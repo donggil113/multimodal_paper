@@ -13,9 +13,17 @@ from infogain.vinfo.core import subset_key
 @pytest.fixture(scope="module")
 def tiny_family():
     torch.manual_seed(0)
-    return MaskedFusionFamily({"a": 5, "b": 7, "c": 3},
-                              FamilyConfig(emb_dim=8, enc_hidden=12, head_hidden=16,
-                                           n_heads=2, n_attn_layers=1))
+    m = MaskedFusionFamily({"a": 5, "b": 7, "c": 3},
+                           FamilyConfig(emb_dim=8, enc_hidden=12, head_hidden=16,
+                                        n_heads=2, n_attn_layers=1))
+    # The head's last layer is zero-initialised so the empty-mask member starts
+    # at the prevalence; leaving it that way would make every closure test below
+    # pass trivially on a constant output. Randomise it, and switch off dropout,
+    # so the tests actually exercise the masking path.
+    torch.nn.init.normal_(m.head[-1].weight, std=0.5)
+    torch.nn.init.normal_(m.head[-1].bias, std=0.5)
+    m.eval()
+    return m
 
 
 def test_masking_closure_absent_modality_cannot_influence_output(tiny_family):
@@ -32,6 +40,10 @@ def test_masking_closure_absent_modality_cannot_influence_output(tiny_family):
     x2["b"] = torch.randn(6, 7) * 100      # wildly different masked input
     out2 = tiny_family(x2, present)
     assert torch.allclose(out1, out2, atol=1e-6)
+    # guard against a vacuous test: a *present* modality must matter
+    x3 = dict(x)
+    x3["a"] = torch.randn(6, 5) * 100
+    assert not torch.allclose(out1, tiny_family(x3, present), atol=1e-4)
 
 
 def test_embedding_also_respects_masking(tiny_family):
@@ -40,6 +52,8 @@ def test_embedding_also_respects_masking(tiny_family):
     e1 = tiny_family.embed(x, present)
     x2 = dict(x); x2["c"] = torch.randn(4, 3) * 50
     assert torch.allclose(e1, tiny_family.embed(x2, present), atol=1e-6)
+    x3 = dict(x); x3["a"] = torch.randn(4, 5) * 50
+    assert not torch.allclose(e1, tiny_family.embed(x3, present), atol=1e-4)
 
 
 def test_empty_mask_gives_a_constant_prediction(tiny_family):
@@ -53,10 +67,14 @@ def test_concat_fusion_also_closes_under_masking():
     m = MaskedFusionFamily({"a": 4, "b": 6},
                            FamilyConfig(emb_dim=8, enc_hidden=10, head_hidden=10,
                                         fusion="concat"))
+    torch.nn.init.normal_(m.head[-1].weight, std=0.5)
+    m.eval()
     x = {"a": torch.randn(5, 4), "b": torch.randn(5, 6)}
     p = torch.tensor([[1.0, 0.0]] * 5)
     x2 = dict(x); x2["b"] = torch.randn(5, 6) * 30
     assert torch.allclose(m(x, p), m(x2, p), atol=1e-6)
+    x3 = dict(x); x3["a"] = torch.randn(5, 4) * 30
+    assert not torch.allclose(m(x, p), m(x3, p), atol=1e-4)
 
 
 def test_subset_presence_intersects_with_acquisition(tiny_family):

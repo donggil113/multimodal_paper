@@ -147,6 +147,7 @@ def test_theorem1_bound_does_not_exceed_observed_in_the_run(fitted, tmp_path):
         gain=GainConfig(n_samples=4, n_neighbors=10), make_figures=False)
     analyse(cohort, cfg, tmp_path)
     t1 = pd.read_csv(tmp_path / "tables" / "theorem1_bounds.csv")
-    # the certified bound is on the *achievable* gain, which is at least the
-    # observed gain of the fitted pair
-    assert (t1["bound"] <= t1["observed_gain"] + 1e-6).all()
+    # Theorem 1 bounds the *achievable* gain (hull AUROC of the richer model
+    # minus the context model's AUROC), which can exceed the gain the particular
+    # fitted pair happens to show.
+    assert (t1["bound"] <= t1["achievable_gain"] + 1e-6).all()

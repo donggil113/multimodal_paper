@@ -83,8 +83,11 @@ def test_min_detectable_gain_is_an_inverse():
 
 
 def test_theorem1_bound_never_exceeds_achievable():
-    a, informative = verify_theorem1(n_trials=25, n=6000, seed=4)
+    a, identity, informative = verify_theorem1(n_trials=25, n=6000, seed=4)
     assert a.holds
+    # the theorem's content is an identity with the witness score's AUROC gain;
+    # it should hold to machine precision, not merely as an inequality
+    assert identity.holds and abs(identity.worst_slack) < 1e-9
     assert informative.worst_slack > 0.3, "bound is vacuous on synergy problems"
 
 

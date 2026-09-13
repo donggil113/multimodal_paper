@@ -194,19 +194,33 @@ def check_identity(eta_fine: np.ndarray, eta_coarse: np.ndarray,
 
 
 def nest_calibrate(eta_fine: np.ndarray, eta_coarse: np.ndarray,
-                   n_bins: int = 50) -> np.ndarray:
+                   n_bins: int | None = None) -> np.ndarray:
     r"""Project the coarse risks onto :math:`\mathbb E[\eta_2 \mid \eta_1]`.
 
-    Two separately-trained heads need not satisfy the nesting condition, and the
-    identity is stated for nested posteriors.  Binning :math:`\eta_2` on
-    :math:`\eta_1` restores it with negligible loss and makes the reported
-    information gain non-negative by construction.
+    Two separately-trained heads need not satisfy the nesting condition that
+    Theorem 3 is stated under, so the coarse model is replaced by the conditional
+    mean of the fine one given the coarse ranking.
+
+    Isotonic regression of :math:`\eta_2` on :math:`\eta_1`, rather than binning.
+    Fixed bins smooth within each bin whether or not there is anything to smooth,
+    which shows up as a spurious information gap: with
+    :math:`\eta_2=\eta_1` the projection should be the identity and the gap
+    exactly zero, and only the isotonic fit gives that (a monotone sequence is
+    its own isotonic fit).  Passing ``n_bins`` forces the old binned estimator,
+    which is kept for the degenerate case of a constant coarse model.
     """
     fine = np.asarray(eta_fine, dtype=np.float64)
     coarse = np.asarray(eta_coarse, dtype=np.float64)
+    if n_bins is None and coarse.size > 2 and np.ptp(coarse) > 0:
+        from sklearn.isotonic import IsotonicRegression
+
+        iso = IsotonicRegression(y_min=0.0, y_max=1.0, increasing=True,
+                                 out_of_bounds="clip")
+        return np.clip(iso.fit_transform(coarse, fine), 1e-9, 1 - 1e-9)
+
     order = np.argsort(coarse)
     out = np.empty_like(coarse)
-    chunks = np.array_split(order, min(n_bins, max(1, coarse.size // 20)))
+    chunks = np.array_split(order, min(n_bins or 50, max(1, coarse.size // 20)))
     for idx in chunks:
         if idx.size:
             out[idx] = fine[idx].mean()

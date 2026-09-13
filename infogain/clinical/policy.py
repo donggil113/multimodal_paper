@@ -172,10 +172,13 @@ class PolicyEvaluation:
     test_fraction: float
     mean_cost: float
     auroc: float
-    net_benefit: dict[float, float]
+    net_benefit: dict[float, float]           # as deployed, uncalibrated
+    net_benefit_nested: dict[float, float]    # after the nesting projection
     restricted_info_bits: float
     info_vs_all_bits: float
     certified_nb_loss: dict[float, float]
+    info_nb_loss: dict[float, float]          # the part Theorem 2 certifies
+    calibration_nb_loss: dict[float, float]   # the part recalibration removes
     missed_cases_delta: dict[float, int]
 
     def as_row(self, thresholds: Sequence[float]) -> dict:
@@ -188,6 +191,8 @@ class PolicyEvaluation:
         for t in thresholds:
             row[f"nb@{t:g}"] = self.net_benefit.get(t, np.nan)
             row[f"nb_loss_bound@{t:g}"] = self.certified_nb_loss.get(t, np.nan)
+            row[f"nb_loss_info@{t:g}"] = self.info_nb_loss.get(t, np.nan)
+            row[f"nb_loss_calib@{t:g}"] = self.calibration_nb_loss.get(t, np.nan)
             row[f"missed@{t:g}"] = self.missed_cases_delta.get(t, np.nan)
         return row
 
@@ -197,22 +202,36 @@ def evaluate_policy(res: PolicyResult, y: np.ndarray, p_reference: np.ndarray,
                     n_orderable: int = 1,
                     restricted_window: tuple[float, float] = (0.02, 0.30)
                     ) -> PolicyEvaluation:
-    """Score a policy against the order-everything reference.
+    r"""Score a policy against the order-everything reference.
 
-    ``info_vs_all_bits`` is the information the policy gives up relative to
-    ordering everything, and ``certified_nb_loss`` is Theorem 2's bound on what
-    that shortfall can cost in net benefit -- a guarantee that holds whether or
-    not the empirical net-benefit difference happens to be favourable in this
-    sample.
+    A reduced policy loses net benefit for two separable reasons, and conflating
+    them is a mistake we take some care to avoid.
+
+    *Information.*  It has fewer inputs, so its posterior is coarser.  This is
+    what ``info_vs_all_bits`` measures and what Theorem 2 certifies: the loss is
+    evaluated between the reference and its projection onto the policy's
+    ranking, the nested pair the theorem is stated for.
+
+    *Calibration.*  A model with fewer inputs is typically also mis-calibrated
+    relative to the reference, so thresholding it selects a different set even
+    where the ranking agrees.  That loss is real as deployed, but it is removed
+    by recalibration rather than by ordering more tests, and Theorem 2 does not
+    cover it.  ``calibration_nb_loss`` reports it separately.
+
+    A monotone recalibration of the full model therefore shows an information
+    gap of exactly zero -- as it should, since it has the same information.
     """
     p = res.probs
     nested = nest_calibrate(p_reference, p)
     gap_bits = information_gain_nats(p_reference, nested) / LN2
-    nb = {}
-    missed = {}
-    cert = {}
+    nb, nb_nested, missed, cert, info_loss, calib_loss = {}, {}, {}, {}, {}, {}
     for t in thresholds:
-        nb[t] = float(empirical_net_benefit(y, p, np.array([t]))[0])
+        tt = np.array([t])
+        nb_ref = float(empirical_net_benefit(y, p_reference, tt)[0])
+        nb[t] = float(empirical_net_benefit(y, p, tt)[0])
+        nb_nested[t] = float(empirical_net_benefit(y, nested, tt)[0])
+        info_loss[t] = nb_ref - nb_nested[t]
+        calib_loss[t] = nb_nested[t] - nb[t]
         ref_flag = p_reference > t
         pol_flag = p > t
         missed[t] = int(np.sum((y == 1) & ref_flag & ~pol_flag)
@@ -223,8 +242,14 @@ def evaluate_policy(res: PolicyResult, y: np.ndarray, p_reference: np.ndarray,
         tests_per_patient=float(res.n_tests.mean()),
         test_fraction=float(res.n_tests.mean() / max(n_orderable, 1)),
         mean_cost=float(res.cost.mean()), auroc=float(auroc(y, p)),
-        net_benefit=nb,
-        restricted_info_bits=restricted_information(p, np.full_like(p, float(y.mean())),
+        net_benefit=nb, net_benefit_nested=nb_nested,
+        info_nb_loss=info_loss, calibration_nb_loss=calib_loss,
+        # The identity behind restricted_information needs a *nested* coarse
+        # model. Against the no-information reference the coarse posterior is a
+        # constant, and nesting then requires that constant to be the mean of
+        # the fine model, not the observed prevalence -- they differ by the
+        # model's calibration error, which would otherwise leak into the number.
+        restricted_info_bits=restricted_information(p, np.full_like(p, float(p.mean())),
                                                     *restricted_window),
         info_vs_all_bits=gap_bits, certified_nb_loss=cert,
         missed_cases_delta=missed)

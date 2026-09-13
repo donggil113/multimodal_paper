@@ -370,8 +370,9 @@ answer would understate uncertainty by that amount.
 
 \subsection{The same two tests are redundant for one disease and synergistic for another}
 
-Figure~\ref{fig:decomp} gives the decomposition for the primary endpoint and
-Figure~\ref{fig:map} the pairwise interaction map. The structure is not a
+Figure~\ref{fig:decomp} gives the decomposition for the primary endpoint,
+Figure~\ref{fig:map} the pairwise interaction map, and
+Table~\ref{tab:decomposition} all four endpoints at once. The structure is not a
 property of the modalities:
 
 \begin{itemize}
@@ -429,7 +430,8 @@ budget, and the standard clinical heuristic of testing the intermediate-risk ban
 At matched discrimination (within 0.005 AUROC of testing everyone), the INFOGAIN
 policy orders \redTestsAvoided\% fewer tests, saving \$\redCostSaved\ per patient
 (\redCostSavedPct\%), at AUROC \redAuroc\ versus \redAurocAll\
-(Fig.~\ref{fig:frontier}). The forgone information is \redInfoGap\ bits, which by
+(Fig.~\ref{fig:frontier}, Table~\ref{tab:policy}). The forgone information is
+\redInfoGap\ bits, which by
 Theorem~\ref{thm:omit} certifies a net-benefit loss of at most
 \redCertifiedLoss\ at every threshold in the clinical window -- a guarantee that
 holds independently of whether this particular sample happened to be favourable.
@@ -693,6 +695,30 @@ figure generation.
 
 \bibliographystyle{unsrtnat}
 \bibliography{refs}
+
+% ===================================================================== %
+\clearpage
+\section*{Tables}
+
+\begin{table}[htbp]\centering\small
+\caption{\textbf{Context-relative decomposition across all four endpoints.}
+For each modality: value alone on top of the free baseline ($I_m$), value once
+every other test is in hand ($U$), and the split of their difference into
+redundant and synergistic bits. $p$ is a paired sign-flip permutation test on
+the conditional gain. The same pair of modalities changes regime between
+endpoints, which is the paper's central empirical observation.}
+\label{tab:decomposition}
+\input{tables/decomposition_table}
+\end{table}
+
+\begin{table}[htbp]\centering\small
+\caption{\textbf{Ordering policies at the primary endpoint.} Tests ordered per
+patient, cost, discrimination, and the information given up relative to testing
+everyone. The comparison that matters is against the risk-band heuristic at
+matched budget, not against the extremes.}
+\label{tab:policy}
+\input{tables/policy_table}
+\end{table}
 
 % ===================================================================== %
 \clearpage

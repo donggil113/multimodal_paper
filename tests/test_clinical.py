@@ -126,16 +126,28 @@ def test_evaluate_policy_reports_zero_gap_for_order_all(spec):
     assert all(v == pytest.approx(0.0, abs=1e-9) for v in ev.certified_nb_loss.values())
 
 
-def test_certified_loss_dominates_observed_loss(spec):
+def test_certified_loss_dominates_the_information_loss(spec):
+    """Theorem 2 certifies the information component, which is what it bounds."""
     cf = _FakeCF()
     cm = CostModel(spec)
     ref = policy_order_all(cf, cm, ["a", "b"]).probs
     r = policy_baseline_only(cf, cm, ["a", "b"])
     ev = evaluate_policy(r, cf.y, ref, thresholds=(0.05, 0.1, 0.2), n_orderable=2)
     for t in (0.05, 0.1, 0.2):
-        observed_loss = (float(empirical_net_benefit(cf.y, ref, np.array([t]))[0])
-                         - ev.net_benefit[t])
-        assert ev.certified_nb_loss[t] >= observed_loss - 1e-9
+        assert ev.certified_nb_loss[t] >= ev.info_nb_loss[t] - 1e-9
+        # the two components must reconstruct the deployed loss exactly
+        total = (float(empirical_net_benefit(cf.y, ref, np.array([t]))[0])
+                 - ev.net_benefit[t])
+        assert ev.info_nb_loss[t] + ev.calibration_nb_loss[t] == pytest.approx(total)
+
+
+def test_monotone_recalibration_shows_no_information_loss(spec):
+    """A rank-preserving transform of the full model gives up no information."""
+    cf = _FakeCF()
+    cm = CostModel(spec)
+    allp = policy_order_all(cf, cm, ["a", "b"])
+    ev = evaluate_policy(allp, cf.y, allp.probs, n_orderable=2)
+    assert ev.info_vs_all_bits == pytest.approx(0.0, abs=1e-9)
 
 
 def test_reduction_study_produces_a_frontier(spec):

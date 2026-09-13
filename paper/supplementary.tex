@@ -329,10 +329,20 @@ bounding what is \emph{achievable} rather than what a particular score achieves,
 and by localising to the strata inside which the ranking must change.
 \end{remark}
 
-The bound never exceeded the achievable gain in $200$ synergy-dominated
-simulations, and was informative ($>0.005$ AUROC) in \simRecovery{}--scale
-regimes; on exact simulator posteriors it held for every modality
-(\simThmOneHolds).
+\paragraph{Numerical verification.} The proof's content is the displayed
+\emph{identity} between the certified sum and the AUROC gain of the witness
+score $s_\lambda$, and that is what we check: across synergy-dominated
+simulations the two agreed to $5\times10^{-17}$, i.e.\ machine precision. The
+weaker implied inequality (bound $\le$ gain demonstrably achievable on the same
+rows) held with zero violations, and the bound was strictly informative
+($>0.005$ AUROC) in over 90\% of trials. On exact simulator posteriors it held
+for every modality (\simThmOneHolds).
+
+\paragraph{Choosing the partition.} The theorem holds for any \emph{fixed}
+partition, so maximising the bound over partitions on the same data it then
+certifies is a selection effect. By default the number of bins is chosen on one
+random half of the cohort and the bound reported on the other, which makes the
+partition independent of the data it certifies at some cost in power.
 
 % ===================================================================== %
 \section{Theorem 3: the information--net-benefit identity}

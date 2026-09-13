@@ -11,6 +11,7 @@ Stages, in the order the paper presents them:
 3. ``simulation``  -- validate the estimator against exact ground truth
 4. ``analysis``    -- the main analysis, one run per endpoint
 5. ``sensitivity`` -- repeat under missing-not-at-random test ordering
+6. ``paper``       -- regenerate the manuscript's numbers and tables
 
 Pass ``--mimic-root`` to run stages 4-5 on a real PhysioNet extraction instead of
 the simulator; the analysis code is identical either way.
@@ -124,12 +125,25 @@ def main() -> None:
             cmd.append("--quick")
         timings["sensitivity"] = run(cmd, logs / "sensitivity.log")
 
+    # -- 6. refresh the manuscript's numbers and tables ---------------------- #
+    if "paper" not in skip:
+        cohort_key = cohort_dir.name
+        timings["paper_numbers"] = run(
+            [py, "scripts/make_paper_numbers.py", "--results", str(res),
+             "--cohort-name", cohort_key, "--primary", outcomes[0]],
+            logs / "paper_numbers.log")
+        timings["paper_tables"] = run(
+            [py, "scripts/make_paper_tables.py", "--results", str(res),
+             "--cohort-name", cohort_key, "--primary", outcomes[0]],
+            logs / "paper_tables.log")
+
     (res).mkdir(parents=True, exist_ok=True)
     with open(res / "run_manifest.json", "w") as fh:
         json.dump({"args": vars(args), "timings_seconds": timings,
                    "total_seconds": sum(timings.values())}, fh, indent=2)
     print(f"\nall stages complete in {sum(timings.values()) / 60:.1f} min")
     print(f"manifest -> {res / 'run_manifest.json'}")
+    print("build the manuscript with:  cd paper && latexmk -pdf main.tex")
 
 
 if __name__ == "__main__":

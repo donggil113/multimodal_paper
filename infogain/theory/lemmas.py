@@ -297,11 +297,45 @@ class StratifiedAurocBound:
     auroc_coarse: float
     auroc_fine: float
     per_bin: list[dict]
+    #: AUROC gain of the lexicographic witness score over the coarse model,
+    #: evaluated on the same rows as ``bound``.  Theorem 1 says these are
+    #: *equal*; ``identity_residual`` records how far apart they came out, which
+    #: is the sharpest available check on the proof.
+    lexicographic_gain: float = float("nan")
+    identity_residual: float = float("nan")
+    #: best gain demonstrably achievable from the richer inputs on these rows:
+    #: the better of the fine model's ROC hull and the witness score's, minus the
+    #: coarse model's AUROC.  This -- not the fine model's raw gain -- is what
+    #: the bound bounds.
+    achievable_gain: float = float("nan")
+    n_eval: int = 0
 
     def as_dict(self) -> dict:
         return {"bound": self.bound, "n_bins": self.n_bins,
                 "observed_gain": self.observed_gain,
+                "lexicographic_gain": self.lexicographic_gain,
+                "identity_residual": self.identity_residual,
+                "achievable_gain": self.achievable_gain, "n_eval": self.n_eval,
                 "auroc_coarse": self.auroc_coarse, "auroc_fine": self.auroc_fine}
+
+
+def lexicographic_score(eta_coarse: np.ndarray, eta_fine: np.ndarray,
+                        n_bins: int) -> np.ndarray:
+    r"""The witness score of Theorem 1: bin index, ties broken by the fine model.
+
+    Ranks patients by which :math:`\eta_S` bin they fall in, and within a bin by
+    :math:`\eta_{S\cup m}`.  It is measurable with respect to the richer input
+    set, it agrees with :math:`\eta_S` on every across-bin pair, and it is what
+    makes the theorem's inequality constructive rather than existential.
+    """
+    ec = np.asarray(eta_coarse, dtype=np.float64)
+    ef = np.asarray(eta_fine, dtype=np.float64)
+    edges = np.quantile(ec, np.linspace(0, 1, n_bins + 1))
+    edges[0], edges[-1] = -np.inf, np.inf
+    bin_id = np.clip(np.searchsorted(edges, ec, side="right") - 1, 0, n_bins - 1)
+    lo, hi = float(np.min(ef)), float(np.max(ef))
+    inner = (ef - lo) / (hi - lo) if hi > lo else np.zeros_like(ef)
+    return bin_id.astype(np.float64) + 0.999 * inner
 
 
 def stratified_auroc_gain_bound(y: np.ndarray, eta_coarse: np.ndarray,
@@ -343,31 +377,73 @@ def stratified_auroc_gain_bound(y: np.ndarray, eta_coarse: np.ndarray,
                      "pair_weight": w_k, "auroc_fine": a_fine,
                      "auroc_coarse": a_coarse, "contribution": contrib})
 
+    a_coarse = float(auroc(y, ec))
+    witness = lexicographic_score(ec, ef, n_bins)
+    lex_gain = float(auroc(y, witness)) - a_coarse
+    achievable = float(max(auroc_hull(y, ef), auroc_hull(y, witness))) - a_coarse
     return StratifiedAurocBound(
         bound=float(total), n_bins=n_bins,
-        observed_gain=float(auroc(y, ef) - auroc(y, ec)),
-        auroc_coarse=float(auroc(y, ec)), auroc_fine=float(auroc(y, ef)),
-        per_bin=rows)
+        observed_gain=float(auroc(y, ef)) - a_coarse,
+        auroc_coarse=a_coarse, auroc_fine=float(auroc(y, ef)),
+        per_bin=rows, lexicographic_gain=lex_gain,
+        identity_residual=float(total - lex_gain),
+        achievable_gain=achievable, n_eval=int(y.size))
 
 
 def best_stratified_bound(y: np.ndarray, eta_coarse: np.ndarray,
                           eta_fine: np.ndarray,
                           bin_grid: tuple[int, ...] = (1, 2, 4, 6, 8, 10, 15, 20, 30),
-                          min_bin: int = 30) -> StratifiedAurocBound:
-    """Maximise Theorem 1's bound over equal-frequency partitions."""
-    best: StratifiedAurocBound | None = None
-    for nb in bin_grid:
-        if len(y) // max(nb, 1) < min_bin:
-            continue
-        try:
-            cand = stratified_auroc_gain_bound(y, eta_coarse, eta_fine, nb, min_bin)
-        except ValueError:
-            continue
-        if best is None or cand.bound > best.bound:
-            best = cand
-    if best is None:
-        raise ValueError("no admissible partition; cohort too small")
-    return best
+                          min_bin: int = 30, honest: bool = True,
+                          seed: int = 0) -> StratifiedAurocBound:
+    r"""Maximise Theorem 1's bound over equal-frequency partitions.
+
+    The theorem holds for any *fixed* partition, so choosing the partition that
+    maximises the bound on the same data it is then evaluated on is a selection
+    effect -- small here, but exactly the kind of thing that invites the
+    objection that the certificate was fitted.  With ``honest=True`` (the
+    default) the number of bins is chosen on one random half of the cohort and
+    the reported bound is computed on the other, which makes the partition
+    independent of the data it certifies at the cost of some power.
+    """
+    y = np.asarray(y).astype(int)
+
+    def _best_over_grid(idx: np.ndarray) -> int | None:
+        best_nb, best_val = None, -np.inf
+        for nb in bin_grid:
+            if idx.size // max(nb, 1) < min_bin:
+                continue
+            try:
+                cand = stratified_auroc_gain_bound(y[idx], eta_coarse[idx],
+                                                   eta_fine[idx], nb, min_bin)
+            except ValueError:
+                continue
+            if cand.bound > best_val:
+                best_nb, best_val = nb, cand.bound
+        return best_nb
+
+    if not honest:
+        nb = _best_over_grid(np.arange(y.size))
+        if nb is None:
+            raise ValueError("no admissible partition; cohort too small")
+        return stratified_auroc_gain_bound(y, eta_coarse, eta_fine, nb, min_bin)
+
+    rng = np.random.default_rng(seed)
+    perm = rng.permutation(y.size)
+    sel, evl = perm[: y.size // 2], perm[y.size // 2:]
+    nb = _best_over_grid(sel)
+    if nb is None:                       # too small to split; fall back
+        nb = _best_over_grid(np.arange(y.size))
+        if nb is None:
+            raise ValueError("no admissible partition; cohort too small")
+        return stratified_auroc_gain_bound(y, eta_coarse, eta_fine, nb, min_bin)
+    # bound, witness and achievable gain all live on the evaluation half, so
+    # they remain a matched set; only the descriptive AUROCs use the full cohort
+    out = stratified_auroc_gain_bound(y[evl], eta_coarse[evl], eta_fine[evl],
+                                      nb, min_bin)
+    out.auroc_coarse = float(auroc(y, eta_coarse))
+    out.auroc_fine = float(auroc(y, eta_fine))
+    out.observed_gain = out.auroc_fine - out.auroc_coarse
+    return out
 
 
 def within_bin_information_bound(y: np.ndarray, eta_coarse: np.ndarray,
