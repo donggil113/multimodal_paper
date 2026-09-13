@@ -426,6 +426,73 @@ def rebuild_summary(out: Path, outcome: str) -> dict:
     return summary
 
 
+def patient_targeting_study(n: int = 50000, outcome: str = "mortality_30d",
+                            epochs: int = 130, folds: int = 4,
+                            seeds: tuple[int, ...] = (0, 1),
+                            seed: int = 0) -> pd.DataFrame:
+    r"""Does the prospective score rank *patients* correctly, not just average?
+
+    The cohort-level consistency check (:func:`infogain.vinfo.conditional.
+    consistency_check`) compares the mean of the prospective score against the
+    mean realised PVI gain, and they agree.  Their *rank* correlation is close to
+    zero, which looks alarming until one asks what the retrospective quantity is:
+    :math:`\mathrm{pvi}_i(S\cup m) - \mathrm{pvi}_i(S)` is a single-draw
+    log-likelihood ratio at the one outcome this patient happened to have.  Its
+    conditional expectation given :math:`x_i` is the gain, which is why the means
+    match, but for a rare endpoint the draw dominates the signal, so it is a poor
+    per-patient yardstick no matter how good the score is.
+
+    This function measures that directly.  ``spearman_truth_vs_retro`` is the
+    ceiling: the rank correlation the *exact* per-patient gain achieves against
+    the retrospective quantity.  If the estimator's correlation with the
+    retrospective gain is near that ceiling, the near-zero number in the
+    consistency table is a property of the yardstick and not a defect.
+    ``spearman_est_vs_truth`` is the question that actually matters for a policy
+    that orders tests, and ``capture_at_10`` is its decision-relevant form: of
+    all the information an oracle could buy with a budget of 10% of patients, how
+    much does ordering by the score actually buy?
+    """
+    from scipy.stats import spearmanr
+
+    from infogain.vinfo.conditional import (GainConfig, patient_expected_gain,
+                                            retrospective_gain)
+
+    cohort, gt = generate(n=n, seed=seed)
+    base = sorted(cohort.spec.baseline)
+    cf = fit_family(cohort, outcome,
+                    TrainConfig(epochs=epochs, n_folds=folds, seeds=tuple(seeds),
+                                patience=18), keep_models=True)
+    budget = max(1, int(round(0.10 * len(cf.rows))))
+    rows = []
+    for m in cohort.spec.orderable:
+        est = patient_expected_gain(cf, cohort, m, context=base,
+                                    cfg=GainConfig(n_samples=24,
+                                                   n_neighbors=40)).delta_bits
+        retro = retrospective_gain(cf, m, context=base)
+        true = gt.patient_gain(outcome, m, set(base), rows=cf.rows, n_mc=64,
+                               seed=seed)
+        # a budget policy buys the test for the `budget` highest-scoring
+        # patients; measure the true information it thereby collects against
+        # what the oracle ordering collects, with random ordering as the floor
+        oracle = float(np.sort(true)[-budget:].sum())
+        got = float(true[np.argsort(-est)[:budget]].sum())
+        chance = float(true.mean() * budget)
+        rows.append({
+            "modality": m,
+            "mean_est_bits": float(est.mean()),
+            "mean_true_bits": float(true.mean()),
+            "mean_retro_bits": float(retro.mean()),
+            "spearman_est_vs_truth": float(spearmanr(est, true).statistic),
+            "pearson_est_vs_truth": float(np.corrcoef(est, true)[0, 1]),
+            "spearman_est_vs_retro": float(spearmanr(est, retro).statistic),
+            "spearman_truth_vs_retro": float(spearmanr(true, retro).statistic),
+            "capture_at_10": got / oracle if oracle > 0 else float("nan"),
+            "chance_at_10": chance / oracle if oracle > 0 else float("nan"),
+            "n": int(len(cf.rows)),
+        })
+    return pd.DataFrame(rows)
+
+
 def main() -> None:  # pragma: no cover - CLI
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default="results/simulation")
@@ -441,6 +508,11 @@ def main() -> None:  # pragma: no cover - CLI
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--rebuild-summary", action="store_true",
                     help="recompute summary.json from saved tables, no refitting")
+    ap.add_argument("--targeting-n", type=int, default=50000,
+                    help="cohort size for the per-patient targeting study")
+    ap.add_argument("--targeting-only", action="store_true",
+                    help="run only the per-patient targeting study and exit; it "
+                         "needs one family fit rather than the whole grid")
     args = ap.parse_args()
 
     out = Path(args.out)
@@ -461,6 +533,15 @@ def main() -> None:  # pragma: no cover - CLI
         train = TrainConfig(epochs=25, n_folds=3, seeds=(0,), patience=8, min_epochs=8)
         args.qual_sizes, args.exact_n = "2000,5000", 15000
         args.power_sizes = "4000"
+        args.epochs, args.folds, args.seeds = 25, 3, 1
+        args.targeting_n = 4000
+
+    if args.targeting_only:
+        tgt = patient_targeting_study(args.targeting_n, args.outcome, args.epochs,
+                                      args.folds, tuple(range(args.seeds)), args.seed)
+        tgt.to_csv(out / "tables" / "patient_targeting.csv", index=False)
+        print(tgt.round(4).to_string(index=False))
+        return
 
     log.info("== recovery study ==")
     rec = add_extrapolation(recovery_study(sizes, args.outcome, args.seed, train))
@@ -478,6 +559,11 @@ def main() -> None:  # pragma: no cover - CLI
                              (False, True), args.outcome, args.seed, train)
     abl.to_csv(out / "tables" / "synergy_power.csv", index=False)
     ref.to_csv(out / "tables" / "synergy_power_tree.csv", index=False)
+
+    log.info("== per-patient targeting study ==")
+    tgt = patient_targeting_study(args.targeting_n, args.outcome, args.epochs,
+                                  args.folds, tuple(range(args.seeds)), args.seed)
+    tgt.to_csv(out / "tables" / "patient_targeting.csv", index=False)
 
     log.info("== exact theorem checks ==")
     thm = theorem_study_exact(args.exact_n, args.outcome, args.seed)

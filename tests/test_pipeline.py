@@ -196,3 +196,33 @@ def test_sequential_policy_stops_below_the_threshold(fitted):
     res = greedy_sequential(cf, table, cm, orderable, max_tests=2,
                             lambda_bits_per_dollar=1e-3)
     assert res.n_tests.sum() == 0
+
+
+def test_patient_targeting_study_reports_the_yardstick_ceiling(tmp_path):
+    """The targeting study must separate "bad estimator" from "bad yardstick".
+
+    The consistency table's near-zero rank correlation between the prospective
+    score and the retrospective realised gain invites the reading that the
+    per-patient score is noise.  ``spearman_truth_vs_retro`` is what settles it:
+    it is the correlation the *exact* gain achieves against the same yardstick,
+    so it is an upper bound on what any estimator could score there.  If the
+    study ever stopped reporting it, the paper would lose the only evidence
+    distinguishing the two explanations.
+    """
+    from infogain.experiments.run_simulation import patient_targeting_study
+
+    tgt = patient_targeting_study(n=1500, outcome="aki_7d", epochs=12, folds=3,
+                                  seeds=(0,), seed=0)
+    for col in ("spearman_est_vs_truth", "spearman_truth_vs_retro",
+                "capture_at_10", "chance_at_10", "mean_true_bits"):
+        assert col in tgt.columns, col
+    assert len(tgt) >= 3 and tgt["modality"].is_unique
+    for col in ("spearman_est_vs_truth", "spearman_est_vs_retro",
+                "spearman_truth_vs_retro"):
+        assert tgt[col].between(-1.0, 1.0).all(), col
+    # a budget policy cannot collect more than the oracle collects, and the
+    # random-ordering floor is a fraction of it too
+    assert tgt["capture_at_10"].between(0.0, 1.0 + 1e-9).all()
+    assert tgt["chance_at_10"].between(0.0, 1.0 + 1e-9).all()
+    # the exact per-patient gain is a non-negative quantity by construction
+    assert (tgt["mean_true_bits"] >= -1e-9).all()
