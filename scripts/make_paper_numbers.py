@@ -62,6 +62,9 @@ REQUIRED = [
     "powMidBN", "powMidBEvents", "powMidBRecovery",
     "acqLabs", "acqEcg", "acqCxr", "acqEcho",
     "thyThmOneInformative", "exGlobalNb", "exLocalNb",
+    "tgtSignalRhoMin", "tgtSignalRhoMax", "tgtSignalCaptureMin",
+    "tgtSignalCaptureMax", "tgtSignalChanceMin", "tgtSignalChanceMax",
+    "tgtCeilingMax", "tgtN",
     "permNPerm", "permFloor", "decEchoNullPMin",
     "thyWitnessResidual", "certTightenMin", "certTightenMax", "shapleyEffResidual",
     "redAvoidedMin", "redAvoidedMax",
@@ -84,6 +87,8 @@ REQUIRED = [
 #: Per-modality macro families, expanded over the modalities the paper discusses.
 MODALITIES = ["Labs", "Ecg", "Cxr", "Echo", "Notes"]
 for _m in MODALITIES:
+    REQUIRED += [f"tgt{_m}RhoTruth", f"tgt{_m}RhoRetro", f"tgt{_m}Ceiling",
+                 f"tgt{_m}TrueBits", f"tgt{_m}Capture", f"tgt{_m}Chance"]
     REQUIRED += [f"dec{_m}Marginal", f"dec{_m}Conditional", f"dec{_m}Redundant",
                  f"dec{_m}Synergistic", f"dec{_m}RedFrac",
                  f"gain{_m}Mean", f"gain{_m}PNinetynine", f"gain{_m}Gini",
@@ -346,6 +351,29 @@ def main() -> None:
             M.add("redAvoidedMin", f"{100 * min(avoided):.0f}")
             M.add("redAvoidedMax", f"{100 * max(avoided):.0f}")
 
+
+    # ---- per-patient targeting against exact truth ---------------------- #
+    tg = load_csv(R / "simulation" / "tables" / "patient_targeting.csv")
+    if tg is not None:
+        tg = tg.set_index("modality")
+        for mod in tg.index:
+            k = str(mod).capitalize()
+            M.add(f"tgt{k}RhoTruth", _fmt(tg.loc[mod, "spearman_est_vs_truth"], 2))
+            M.add(f"tgt{k}RhoRetro", _fmt(tg.loc[mod, "spearman_est_vs_retro"], 3))
+            M.add(f"tgt{k}Ceiling", _fmt(tg.loc[mod, "spearman_truth_vs_retro"], 3))
+            M.add(f"tgt{k}TrueBits", _fmt(tg.loc[mod, "mean_true_bits"], 4))
+            M.add(f"tgt{k}Capture", _pct(tg.loc[mod, "capture_at_10"], 0))
+            M.add(f"tgt{k}Chance", _pct(tg.loc[mod, "chance_at_10"], 0))
+        # the modalities that carry per-patient signal at all, by true mean gain
+        signal = tg.sort_values("mean_true_bits", ascending=False).head(2)
+        M.add("tgtSignalRhoMin", _fmt(signal["spearman_est_vs_truth"].min(), 2))
+        M.add("tgtSignalRhoMax", _fmt(signal["spearman_est_vs_truth"].max(), 2))
+        M.add("tgtSignalCaptureMin", _pct(signal["capture_at_10"].min(), 0))
+        M.add("tgtSignalCaptureMax", _pct(signal["capture_at_10"].max(), 0))
+        M.add("tgtSignalChanceMin", _pct(signal["chance_at_10"].min(), 0))
+        M.add("tgtSignalChanceMax", _pct(signal["chance_at_10"].max(), 0))
+        M.add("tgtCeilingMax", _fmt(tg["spearman_truth_vs_retro"].max(), 2))
+        M.add("tgtN", f"{int(tg['n'].iloc[0]):,}".replace(",", "{,}"))
 
     # ---- Theorem 2: how much the localised certificate buys ------------- #
     from infogain.clinical.net_benefit import (safe_omission_bound_global,

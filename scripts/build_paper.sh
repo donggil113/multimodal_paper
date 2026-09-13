@@ -13,6 +13,18 @@ python3 scripts/make_paper_numbers.py --results "$RESULTS" --cohort-name "$COHOR
 python3 scripts/make_paper_tables.py  --results "$RESULTS" --cohort-name "$COHORT" --primary "$PRIMARY"
 
 cd paper
-latexmk -pdf -interaction=nonstopmode main.tex
+# The supplement must be built first: main.tex reads supplementary.aux through
+# xr to resolve "Supplementary Table S8" and friends. Building main alone leaves
+# those as ?? -- visibly wrong, which is the point, but not shippable.
 latexmk -pdf -interaction=nonstopmode supplementary.tex
+latexmk -pdf -interaction=nonstopmode main.tex
+# a second supplement pass, so its own forward references settle against the
+# numbers main.tex may have shifted
+latexmk -pdf -interaction=nonstopmode supplementary.tex
+
+if grep -q "Reference .* undefined" main.log supplementary.log; then
+  echo "WARNING: unresolved cross-references remain:" >&2
+  grep -h "Reference .* undefined" main.log supplementary.log | sort -u >&2
+  exit 1
+fi
 echo "built: paper/main.pdf, paper/supplementary.pdf"

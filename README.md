@@ -148,7 +148,9 @@ python -m pytest              # 90+ unit and integration tests, including a
 python -m infogain.theory.verify   # numerical certification of every theorem
 python scripts/run_all.py     # full pipeline
 python scripts/make_paper_numbers.py && python scripts/make_paper_tables.py
-cd paper && latexmk -pdf main.tex && latexmk -pdf supplementary.tex
+# the supplement first: main.tex resolves its "Table S8" references
+# out of supplementary.aux via xr
+cd paper && latexmk -pdf supplementary.tex && latexmk -pdf main.tex
 ```
 
 Every number in the manuscript is a LaTeX macro generated from the results tree,

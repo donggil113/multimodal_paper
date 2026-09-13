@@ -18,6 +18,13 @@
 % cannot run; protrusion (the part that actually matters here) still does.
 \usepackage[expansion=false]{microtype}
 
+% Cross-document references into the supplement. Hand-numbered "Table~S7"
+% citations had already drifted twice from the actual ordering, silently; xr
+% makes a stale reference render as ?? instead of pointing at the wrong table.
+% Requires supplementary.aux, so build the supplement first (see paper/README).
+\usepackage{xr}
+\externaldocument{supplementary}
+
 \captionsetup{font=small,labelfont=bf}
 \graphicspath{{figures/}{../results/cohort_synthetic/mortality_30d/figures/}%
               {../results/simulation/figures/}}
@@ -269,7 +276,7 @@ If $\eta_1 = \mathbb{E}[\eta_2\mid X_S]$, then in nats
 \]
 \end{theorem}
 
-The proof (Supplementary~\S3) applies Schervish's representation of the negative
+The proof (Supplementary~\S\ref{sec:s-identity}) applies Schervish's representation of the negative
 Shannon entropy as a mixture of threshold losses, then uses the nesting condition
 to kill the linear term. Numerically the identity holds to a relative error of
 \thyIdentityRelErr\ over \thyIdentityTrials\ random nested posterior pairs, and
@@ -313,7 +320,7 @@ within-bin AUROC. Within each bin the second term is bounded below by
 $U_k / \big(2H(\pi_k)\big)$, the within-bin conditional usable information.
 \end{theorem}
 
-The proof is a ranking argument (Supplementary~\S2): the lexicographic score
+The proof is a ranking argument (Supplementary~\S\ref{sec:s-lemmas}): the lexicographic score
 ``bin index, ties broken by $\eta_{S\cup m}$'' is $X_{S\cup m}$-measurable and
 agrees with $\eta_S$ on every across-bin pair, so it can only differ within bins.
 The information step uses two lemmas we state and verify separately -- a
@@ -321,7 +328,7 @@ Kolmogorov--Smirnov sandwich $D^+ \le 2A-1 \le 2D^+$ (the lower bound for
 concave ROCs, hence for the ROC convex hull \citep{provost2001robust}) and a
 Jensen--Shannon bound $8\pi^2(1-\pi)^2\TV^2 \le I \le H(\pi)\TV$
 \citep{lin1991divergence}. Both directions of the latter have short proofs
-(Supplementary~\S2) resting on $\mathbb{E}[\eta]=\pi$: the upper bound from the
+(Supplementary~\S\ref{sec:s-lemmas}) resting on $\mathbb{E}[\eta]=\pi$: the upper bound from the
 two chords of the concave binary entropy, the lower from Pinsker plus Jensen. A
 sharper lower constant held in every numerical check but has no proof, so we do
 not use it; only the upper bound enters Theorem~\ref{thm:auroc}, and a looser
@@ -332,7 +339,7 @@ AUROC gain of an explicit witness score, the lexicographic
 ``$\eta_S$-bin, ties broken by $\eta_{S\cup m}$''. We verify that identity
 rather than the inequality it implies, and it holds to $\thyWitnessResidual$. All
 four lemma inequalities hold with zero violations over $\thyTrialsJS$
-Monte-Carlo trials each (Supplementary Table~S1), and on exact simulator
+Monte-Carlo trials each (Supplementary Table~\ref{tab:s-theory}), and on exact simulator
 posteriors the bound never exceeded the achievable gain (\simThmOneHolds).
 
 The converse direction is what licenses omitting a test.
@@ -343,7 +350,7 @@ If omitting modality $m$ forgoes at most $\varepsilon$ nats of information, then
 at every risk threshold $t$ the net-benefit loss obeys
 $\Delta\NB(t) \le \sqrt{\varepsilon/2}\,/\,(1-t)$. Integrating the true
 threshold weight rather than its lower bound gives a strictly tighter,
-threshold-specific certificate (Supplementary~\S4), which on our runs is
+threshold-specific certificate (Supplementary~\S\ref{sec:s-omit}), which on our runs is
 \certTightenMin--\certTightenMax$\times$ smaller at the thresholds used in
 triage ($t \le 0.05$).
 \end{theorem}
@@ -397,7 +404,7 @@ is \powBothFrac\% of the cohort, and the event count inside it correspondingly
 smaller.
 
 Crossing cohort size with an all-acquired variant separates the two
-explanations, and it is the overlap that tracks (Supplementary Table~S7).
+explanations, and it is the overlap that tracks (Supplementary Table~\ref{tab:s-power}).
 Recovery of the synergistic terms rises from \powSynMin\% at \powEventsMin\
 overlapping events to \powSynMax\% at \powEventsMax. The decisive comparison is
 the middle pair: a cohort of \powMidAN\ with complete acquisition
@@ -414,11 +421,11 @@ reveals that. For anyone reading one, an estimate of zero synergy from a
 modestly-sized cohort is weak evidence of absence -- in our own runs the
 synergistic regimes are called correctly at $n=\simRegimeMaxN$ and not at
 $n=\powMidAN$
-(Supplementary Table~S4). The error is at least in the safe direction: it
+(Supplementary Table~\ref{tab:s-firstcorrect}). The error is at least in the safe direction: it
 understates a test's value, so it cannot manufacture a reduction that is not
 there. The learning-curve extrapolation, which lifts median recovery from
 \simRecovery\% to \simRecoveryCorrected\%, and the tree reference of
-Supplementary Table~S8 give two independent ways to tell "hard to reach" from
+Supplementary Table~\ref{tab:s-tree} give two independent ways to tell "hard to reach" from
 "not present".
 
 The fusion head used throughout carries an explicit second-order term over the
@@ -501,9 +508,37 @@ ordering by expected information gain.
 
 The prospective score, computed without the test result or the outcome, agrees
 with the retrospective realised gain in cohort mean, as the tower property
-requires (Supplementary Table~S5); the two are computed by entirely different
+requires (Supplementary Table~\ref{tab:s-consistency}); the two are computed by entirely different
 routes and their agreement jointly validates the conditional sampler, the model
 family and the cross-fitting.
+
+Their \emph{rank} correlation, in the same table, is close to zero, and the
+natural reading -- that the score is noise patient by patient -- is wrong for a
+reason worth stating, because the same table will appear in any paper that
+attempts this check. The retrospective quantity
+$\mathrm{pvi}_i(S\cup m)-\mathrm{pvi}_i(S)$ is a single-draw log-likelihood
+ratio evaluated at the one outcome this patient happened to have. Its
+conditional expectation given $x_i$ is the gain, which is why the means agree,
+but for a rare endpoint the draw swamps the signal and it cannot rank patients
+however good the score is. The simulator settles this, because there the exact
+per-patient gain is available: at $n=\tgtN$ the correlation the \emph{exact}
+gain achieves against the retrospective quantity is at most \tgtCeilingMax,
+and our estimator scores at or near that ceiling for every modality
+(Supplementary Table~\ref{tab:s-targeting}). The near-zero entry measures the yardstick.
+
+Against the exact gain the score does rank patients, for the modalities that
+have per-patient signal to rank: Spearman \tgtSignalRhoMin--\tgtSignalRhoMax\
+for the laboratory panel and the radiograph. For the electrocardiogram and
+echocardiogram, whose true mean gain in this context is \tgtEcgTrueBits\ and
+\tgtEchoTrueBits\ bits, it does not, and we report that rather than averaging
+it into a headline: a score cannot order patients by a quantity that is
+essentially constant at zero. In decision terms, a policy that buys a test for
+the highest-scoring tenth of patients collects
+\tgtSignalCaptureMin--\tgtSignalCaptureMax\% of the information an oracle
+ordering would collect with the same budget, against
+\tgtSignalChanceMin--\tgtSignalChanceMax\% for random ordering. The lift is
+real and it is not large; it is the honest size of per-patient targeting at this
+cohort size.
 
 \subsection{Patient-level ordering reaches the same performance with fewer tests}
 
@@ -538,13 +573,13 @@ given the observed context, plus overlap. Neither is free.
 
 We report the overlap diagnostic directly: the propensity to have received each
 test is modelled from the baseline context, and the fraction of patients outside
-the region of common support is reported per modality (Supplementary Table~S6).
+the region of common support is reported per modality (Supplementary Table~\ref{tab:s-overlap}).
 Patients in that region are flagged rather than scored, because for them the
 counterfactual is an extrapolation, not an estimate.
 
 For missingness \emph{not} at random we repeated the entire analysis on a cohort
 in which ordering depends on the latent factors the ordering clinician can see
-but the model cannot (Supplementary~\S7). The direction of the bias is
+but the model cannot (Supplementary~\S\ref{sec:s-ident}). The direction of the bias is
 informative: unmeasured indication inflates the apparent value of the tests that
 were selectively ordered, and therefore makes the reduction claim conservative
 rather than optimistic -- a policy trained under MNAR orders \emph{more} tests
@@ -591,21 +626,21 @@ the machinery recovers the right answer when the right answer is known.
 $\Vc$-information is relative to the predictor family
 and the sample size; a stronger encoder or a larger cohort raises it, and
 reporting the family is part of reporting the number. We give the learning-curve
-extrapolation and the two-sided finite-sample bracket (Supplementary~\S6) so that
+extrapolation and the two-sided finite-sample bracket (Supplementary~\S\ref{sec:s-finite}) so that
 readers can see how much of the gap is estimation and how much is genuine
 absence of signal, but the estimate remains a lower bound. Our headline
 modality representations are deliberately interpretable -- electrocardiogram
 interval measurements and CheXpert labels rather than raw waveforms and pixels --
 which makes the decomposition auditable by a clinician at the cost of some
 usable information; the raw-signal path is implemented, and quantifying what
-that costs requires the full waveform and image download (Supplementary~\S8).
+that costs requires the full waveform and image download (Supplementary~\S\ref{sec:s-raw}).
 Relatedly, synergistic terms are the last to become estimable, and the binding
 constraint is the number of patients who received both modalities rather than
 the cohort size, so a study whose acquisition rates leave a small overlap will
 report a synergistic test as independent. The error is conservative -- it
 understates a test's value rather than overstating it, and so cannot manufacture
 a reduction that is not there -- but it is an error, and Supplementary
-Tables~S4 and~S7 give the sample sizes involved. MIMIC-IV, the target cohort, is
+Tables~\ref{tab:s-firstcorrect} and~\ref{tab:s-power} give the sample sizes involved. MIMIC-IV, the target cohort, is
 a single academic centre in one country, its test-ordering culture is its own,
 and the cost figures are US list prices; the frontier is therefore reported in full so that a reader with a
 different fee schedule can read off their own operating point. Finally, a
@@ -691,7 +726,7 @@ negative, uncertain, not mentioned -- averaging these would be meaningless) plus
 view position. Notes: TF-IDF over 1--2 grams reduced by truncated SVD to 64
 components, with vocabulary and projection fitted on training folds only.
 Raw-waveform and raw-image encoders (1-D and 2-D residual networks) are
-implemented for the comparison in Supplementary~\S8.
+implemented for the comparison in Supplementary~\S\ref{sec:s-raw}.
 
 \subsection{The predictive family}
 \label{sec:family}

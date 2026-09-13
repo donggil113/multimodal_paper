@@ -184,7 +184,7 @@ def main() -> None:
                    "total_seconds": sum(timings.values())}, fh, indent=2)
     print(f"\nall stages complete in {sum(timings.values()) / 60:.1f} min")
     print(f"manifest -> {res / 'run_manifest.json'}")
-    print("build the manuscript with:  cd paper && latexmk -pdf main.tex")
+    print("build the manuscript with:  bash scripts/build_paper.sh")
 
 
 if __name__ == "__main__":

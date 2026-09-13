@@ -61,6 +61,7 @@ at the level of the individual patient}
 
 % ===================================================================== %
 \section{Setting and standing assumptions}
+\label{sec:s-setting}
 \label{sec:setup}
 
 Throughout, $Y\in\{0,1\}$ is the endpoint with prevalence
@@ -121,6 +122,7 @@ makes this quantitative.
 
 % ===================================================================== %
 \section{From information to discrimination: Lemmas and Theorem 1}
+\label{sec:s-lemmas}
 \label{sec:thm1}
 
 \subsection{L1: the posterior maximises AUROC}
@@ -346,6 +348,7 @@ partition independent of the data it certifies at some cost in power.
 
 % ===================================================================== %
 \section{Theorem 3: the information--net-benefit identity}
+\label{sec:s-identity}
 \label{sec:thm3}
 
 Let $\eta_1=\eta_S$ and $\eta_2=\eta_{S\cup m}$, and put
@@ -434,6 +437,7 @@ between the two sides was \thyIdentityRelErr; on the fitted cohort models it was
 
 % ===================================================================== %
 \section{Theorem 2: certified safe omission}
+\label{sec:s-omit}
 \label{sec:thm2}
 
 \begin{theorem}[Global bound]
@@ -506,6 +510,7 @@ exact simulator posteriors, for every modality and threshold (\simThmTwoHolds).
 
 % ===================================================================== %
 \section{Properties of the context-relative decomposition}
+\label{sec:s-decomp}
 \label{sec:decomp-props}
 
 \begin{proposition}[Exactness and disjointness]
@@ -546,6 +551,7 @@ numerically at each run; the residual is below $10^{-15}$ bits.
 
 % ===================================================================== %
 \section{Finite-sample behaviour of the estimator}
+\label{sec:s-finite}
 \label{sec:finite}
 
 Let $\pvi_i(S)=\log_2 f_S(y_i\mid x_i^S)-\log_2 f_\varnothing(y_i)$, clipped to
@@ -602,6 +608,7 @@ patient-level variance that dominates each component separately.
 
 % ===================================================================== %
 \section{Identification of the per-patient counterfactual}
+\label{sec:s-ident}
 \label{sec:ident}
 
 $\Delta_i(m\mid S)$ asks what a test \emph{would have} shown for a patient. For
@@ -643,6 +650,7 @@ family and the cross-fitting, and is reported for every modality.
 
 % ===================================================================== %
 \section{Raw-signal representations}
+\label{sec:s-raw}
 \label{sec:raw}
 
 The headline analysis represents the electrocardiogram by its interval and axis
@@ -678,6 +686,7 @@ that expectation is a hypothesis this analysis will test, not a result.
 
 % ===================================================================== %
 \section{Supplementary tables}
+\label{sec:s-tables}
 
 \begin{table}[htbp]\centering\small
 \caption{Numerical certification of every theoretical claim
@@ -757,9 +766,26 @@ is the point.}
 \input{tables/tree_reference_table}
 \end{table}
 
+\begin{table}[htbp]\centering\small
+\caption{Per-patient targeting against the simulator's \emph{exact} gain
+$\Delta_i(m\mid S_0)$. The column that matters for reading
+Table~\ref{tab:s-consistency} is ``$\rho$ truth vs retro'': the rank correlation
+the exact gain achieves against the retrospective realised gain, and therefore a
+ceiling on what any estimator can score in that comparison. It is small because
+the retrospective quantity is a single-draw log-likelihood ratio at one realised
+outcome, not because the score is uninformative -- against the exact gain the
+score attains $\rho$ well above zero for the modalities that carry per-patient
+signal. ``Capture @10\%'' is the decision form: the share of the information an
+oracle would collect by testing the best tenth of patients that this ordering
+actually collects, with random ordering as the floor.}
+\label{tab:s-targeting}
+\input{tables/targeting_table}
+\end{table}
+
 % ===================================================================== %
 \clearpage
 \section{Supplementary figures}
+\label{sec:s-figures}
 
 \noindent The estimator-recovery figure appears in the main text; only the
 regime-recovery panel, which has no main-text counterpart, is reproduced here.

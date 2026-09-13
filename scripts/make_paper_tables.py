@@ -155,6 +155,23 @@ def main() -> None:
     else:
         write(None, out / "tree_reference_table.tex")
 
+    # per-patient targeting against exact truth, with the yardstick ceiling
+    tgt = R / "simulation" / "tables" / "patient_targeting.csv"
+    if tgt.exists():
+        df = pd.read_csv(tgt)
+        keep = ["modality", "mean_true_bits", "mean_est_bits",
+                "spearman_est_vs_truth", "spearman_est_vs_retro",
+                "spearman_truth_vs_retro", "capture_at_10", "chance_at_10"]
+        df = df[[c for c in keep if c in df.columns]]
+        df.columns = ["modality", "true bits", "est bits",
+                      "$\\rho$ est vs truth", "$\\rho$ est vs retro",
+                      "$\\rho$ truth vs retro (ceiling)",
+                      "capture @10\\%", "chance @10\\%"][:len(df.columns)]
+        write(df, out / "targeting_table.tex",
+              align="l" + "r" * (len(df.columns) - 1))
+    else:
+        write(None, out / "targeting_table.tex")
+
     # S4 prospective vs retrospective
     cons = base / "tables" / "gain_consistency.csv"
     if cons.exists():
