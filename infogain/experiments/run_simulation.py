@@ -428,8 +428,8 @@ def rebuild_summary(out: Path, outcome: str) -> dict:
 
 
 def architecture_ablation(n: int = 50000, outcome: str = "mortality_30d",
-                          seed: int = 0,
-                          train: TrainConfig | None = None) -> pd.DataFrame:
+                          seed: int = 0, train: TrainConfig | None = None,
+                          data_seeds: tuple[int, ...] = (0, 1)) -> pd.DataFrame:
     r"""Does the fusion head's interaction machinery earn its place?
 
     Two claims in this codebase were never isolated, and both are about the
@@ -447,53 +447,64 @@ def architecture_ablation(n: int = 50000, outcome: str = "mortality_30d",
     both claims are about.  Because :math:`I_\mathcal{V}` is an infimum over the
     family, a weaker head can only *under*-report: the comparison bears on how
     tight the estimate is, never on whether it is valid.
+
+    Two independent cohorts (``data_seeds``) rather than one, because the first
+    run made the second-order term look decisive for *both* heads -- 0.66
+    against 0.39 for concatenation -- and the replicate reversed that arm's sign
+    (0.48 against 0.53).  One cohort cannot separate a real effect from
+    between-cohort spread, and this comparison exists precisely because two
+    earlier claims were made without doing so.
     """
     from dataclasses import replace
 
     train = train or TrainConfig(epochs=130, n_folds=4, seeds=(0, 1), patience=18)
-    cohort, gt = generate(n=n, seed=seed)
-    base, full = cohort.spec.baseline, frozenset(cohort.spec.names)
-    truth = ground_truth_table(gt, outcome, baseline=sorted(base),
-                               respect_observation=True).set_index("modality")
-    y = cohort.y(outcome)
-    both = (cohort.blocks["ecg"].observed & cohort.blocks["cxr"].observed)
-
     rows = []
-    for fusion in ("attention", "concat"):
-        for use_fm in (True, False):
-            cfg = replace(train.family if train.family else FamilyConfig(),
-                          fusion=fusion, use_fm=use_fm)
-            t0 = time.time()
-            cf = fit_family(cohort, outcome, replace(train, family=cfg))
-            secs = time.time() - t0
-            log.info("ablation fusion=%s use_fm=%s fitted in %.0fs",
-                     fusion, use_fm, secs)
-            est = decomposition_table(cf, n_perm=1).set_index("modality")
-            for m in est.index:
-                if m not in truth.index:
-                    continue
-                t, e = truth.loc[m], est.loc[m]
-                rows.append({
-                    "fusion": fusion, "use_fm": use_fm, "modality": m,
-                    "true_regime": regime_of(t["marginal"], t["conditional"]),
-                    "est_regime": regime_of(e["marginal_bits"], e["conditional_bits"]),
-                    "true_conditional": t["conditional"],
-                    "est_conditional": e["conditional_bits"],
-                    "i_full_est": float(cf.pvi(full).mean()),
-                    "fit_seconds": secs, "n": n,
-                    "events_with_both": int((y * both).sum()),
-                })
+    for data_seed in data_seeds:
+        cohort, gt = generate(n=n, seed=data_seed)
+        base, full = cohort.spec.baseline, frozenset(cohort.spec.names)
+        truth = ground_truth_table(gt, outcome, baseline=sorted(base),
+                                   respect_observation=True).set_index("modality")
+        y = cohort.y(outcome)
+        both = (cohort.blocks["ecg"].observed & cohort.blocks["cxr"].observed)
+        for fusion in ("attention", "concat"):
+            for use_fm in (True, False):
+                cfg = replace(train.family if train.family else FamilyConfig(),
+                              fusion=fusion, use_fm=use_fm)
+                t0 = time.time()
+                cf = fit_family(cohort, outcome, replace(train, family=cfg))
+                secs = time.time() - t0
+                log.info("ablation cohort=%d fusion=%s use_fm=%s fitted in %.0fs",
+                         data_seed, fusion, use_fm, secs)
+                est = decomposition_table(cf, n_perm=1).set_index("modality")
+                for m in est.index:
+                    if m not in truth.index:
+                        continue
+                    t, e = truth.loc[m], est.loc[m]
+                    rows.append({
+                        "data_seed": data_seed, "fusion": fusion,
+                        "use_fm": use_fm, "modality": m,
+                        "true_regime": regime_of(t["marginal"], t["conditional"]),
+                        "est_regime": regime_of(e["marginal_bits"],
+                                                e["conditional_bits"]),
+                        "true_conditional": t["conditional"],
+                        "est_conditional": e["conditional_bits"],
+                        "i_full_est": float(cf.pvi(full).mean()),
+                        "fit_seconds": secs, "n": n,
+                        "events_with_both": int((y * both).sum()),
+                    })
     out = pd.DataFrame(rows)
     out["regime_correct"] = out["true_regime"] == out["est_regime"]
-    # the headline: share of the known synergistic conditional gain recovered
+    # the headline: share of the known synergistic conditional gain recovered,
+    # per cohort, so the between-cohort spread stays visible
     syn = out[out["true_regime"] == "synergistic"]
     if not syn.empty:
-        share = (syn.groupby(["fusion", "use_fm"])
+        share = (syn.groupby(["data_seed", "fusion", "use_fm"])
                  .apply(lambda g: g["est_conditional"].sum()
                         / max(g["true_conditional"].sum(), 1e-12),
                         include_groups=False)
                  .rename("syn_recovered"))
-        out = out.merge(share.reset_index(), on=["fusion", "use_fm"], how="left")
+        out = out.merge(share.reset_index(),
+                        on=["data_seed", "fusion", "use_fm"], how="left")
     return out
 
 

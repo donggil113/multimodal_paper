@@ -67,6 +67,7 @@ REQUIRED = [
     "tgtCeilingMax", "tgtN",
     "flipNPairs", "flipPairA", "flipPairB", "flipSynEndpoint", "flipRedEndpoint",
     "flipSynBits", "flipRedBits",
+    "ablSpeedup", "ablNCohorts",
     "permNPerm", "permFloor", "decEchoNullPMin",
     "thyWitnessResidual", "certTightenMin", "certTightenMax", "shapleyEffResidual",
     "redAvoidedMin", "redAvoidedMax",
@@ -95,6 +96,9 @@ for _m in MODALITIES:
                  f"dec{_m}Synergistic", f"dec{_m}RedFrac",
                  f"gain{_m}Mean", f"gain{_m}PNinetynine", f"gain{_m}Gini",
                  f"gain{_m}Concentration", f"gain{_m}FracAbove"]
+for _a in ("AttnFm", "AttnNoFm", "ConcatFm", "ConcatNoFm"):
+    REQUIRED += [f"abl{_a}Syn", f"abl{_a}SynLo", f"abl{_a}SynHi",
+                 f"abl{_a}Regimes", f"abl{_a}Secs"]
 for _e in ("Mortality", "HfReadmission", "Aki", "IcuTransfer"):
     for _m in MODALITIES:
         REQUIRED += [f"dec{_m}{_e}Marg", f"dec{_m}{_e}Cond",
@@ -353,6 +357,32 @@ def main() -> None:
             M.add("redAvoidedMin", f"{100 * min(avoided):.0f}")
             M.add("redAvoidedMax", f"{100 * max(avoided):.0f}")
 
+
+    # ---- fusion architecture ablation ----------------------------------- #
+    ab = load_csv(R / "simulation" / "tables" / "architecture_ablation.csv")
+    if ab is not None:
+        per = (ab.groupby(["fusion", "use_fm", "data_seed"])
+               .agg(syn=("syn_recovered", "first"),
+                    ok=("regime_correct", "sum"),
+                    secs=("fit_seconds", "first")).reset_index())
+        agg = per.groupby(["fusion", "use_fm"]).agg(
+            mean=("syn", "mean"), lo=("syn", "min"), hi=("syn", "max"),
+            ok=("ok", "sum"), n_reg=("ok", "size"), secs=("secs", "mean"))
+        tag = {("attention", True): "AttnFm", ("attention", False): "AttnNoFm",
+               ("concat", True): "ConcatFm", ("concat", False): "ConcatNoFm"}
+        for key, name in tag.items():
+            if key not in agg.index:
+                continue
+            r = agg.loc[key]
+            M.add(f"abl{name}Syn", _pct(r["mean"], 0))
+            M.add(f"abl{name}SynLo", _pct(r["lo"], 0))
+            M.add(f"abl{name}SynHi", _pct(r["hi"], 0))
+            M.add(f"abl{name}Regimes", f"{int(r['ok'])}/{int(4 * r['n_reg'])}")
+            M.add(f"abl{name}Secs", f"{int(round(r['secs'])):,}".replace(",", "{,}"))
+        if ("attention", True) in agg.index and ("concat", True) in agg.index:
+            at, co = agg.loc[("attention", True)], agg.loc[("concat", True)]
+            M.add("ablSpeedup", _fmt(at["secs"] / max(co["secs"], 1e-9), 0))
+        M.add("ablNCohorts", int(per["data_seed"].nunique()))
 
     # ---- pairs that change regime between endpoints --------------------- #
     # This is what the section heading claims, so it must come from the data:

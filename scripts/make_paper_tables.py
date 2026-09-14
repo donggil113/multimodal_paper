@@ -169,6 +169,29 @@ def main() -> None:
     else:
         write(None, out / "tree_reference_table.tex")
 
+    # fusion-architecture ablation
+    ab = R / "simulation" / "tables" / "architecture_ablation.csv"
+    if ab.exists():
+        d = pd.read_csv(ab)
+        g = (d.groupby(["fusion", "use_fm", "data_seed"])
+             .agg(syn=("syn_recovered", "first"), ok=("regime_correct", "sum"),
+                  secs=("fit_seconds", "first"), i_full=("i_full_est", "first"))
+             .reset_index())
+        w = (g.groupby(["fusion", "use_fm"])
+             .agg(**{"synergy recovered": ("syn", "mean"),
+                     "min": ("syn", "min"), "max": ("syn", "max"),
+                     "regimes right": ("ok", "sum"),
+                     "$I$ full panel": ("i_full", "mean"),
+                     "fit (s)": ("secs", "mean")}).reset_index())
+        w["second-order term"] = w.pop("use_fm").map({True: "yes", False: "no"})
+        w["regimes right"] = w["regimes right"].astype(int).astype(str) + "/8"
+        w["fit (s)"] = w["fit (s)"].round(0).astype(int)
+        w = w[["fusion", "second-order term", "synergy recovered", "min", "max",
+               "regimes right", "$I$ full panel", "fit (s)"]]
+        write(w, out / "ablation_table.tex", align="ll" + "r" * 6)
+    else:
+        write(None, out / "ablation_table.tex")
+
     # per-patient targeting against exact truth, with the yardstick ceiling
     tgt = R / "simulation" / "tables" / "patient_targeting.csv"
     if tgt.exists():

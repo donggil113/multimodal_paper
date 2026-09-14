@@ -45,13 +45,24 @@ class FamilyConfig:
     weight_decay: float = 1e-4
     #: ``"attention"`` runs a small transformer over the modality tokens before
     #: pooling; ``"concat"`` is the plain concatenate-then-MLP baseline.
-    #: Synergistic information lives in *interactions* between modalities, and a
-    #: concatenation head has to discover those inside a generic MLP.  Attention
-    #: gives every modality a direct multiplicative path to every other, and in
-    #: the simulation study it recovers roughly twice as much of the known
-    #: synergy at the same sample size.  Because the estimator is an infimum over
-    #: the family, a weaker head only ever *under*-reports information, so this
-    #: choice affects tightness, never validity.
+    #:
+    #: This used to say attention "recovers roughly twice as much of the known
+    #: synergy at the same sample size" because it "gives every modality a
+    #: direct multiplicative path to every other".  Both halves are wrong.
+    #: ``experiments.run_simulation.architecture_ablation`` crosses this switch
+    #: with ``use_fm`` on two cohorts: with the second-order term the two heads
+    #: recover 58% and 57% of the known synergy, ranges overlapping, and concat
+    #: is 4x faster; without it attention collapses to 6% and misreads both
+    #: synergistic modalities, while concat is unharmed at 46%.  Softmax
+    #: attention is a convex combination of value vectors -- linear in them --
+    #: so it forms no product between two modalities' features; ``use_fm``
+    #: repairs that, and concat never needed the repair.
+    #:
+    #: ``"attention"`` remains the default only because it produced the
+    #: published numbers and is at parity.  Prefer ``"concat"`` for new work.
+    #: Because the estimator is an infimum over the family, a weaker head only
+    #: ever *under*-reports information, so this choice affects tightness,
+    #: never validity.
     fusion: str = "attention"
     n_attn_layers: int = 2
     n_heads: int = 4

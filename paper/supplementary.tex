@@ -795,6 +795,26 @@ actually collects, with random ordering as the floor.}
 \fittable{\input{tables/targeting_table}}
 \end{table}
 
+\begin{table}[htbp]\centering\small
+\caption{Fusion-architecture ablation: the two switches crossed on two
+independent cohorts of 50\,000, everything else held fixed. ``Synergy
+recovered'' is the share of the simulator's exact synergistic conditional gain
+the fitted family reaches, averaged over the two cohorts with the range shown,
+and ``regimes right'' counts correct regime calls out of four modalities in each
+of the two cohorts. Two claims this manuscript previously made do not survive
+it. Attention does not beat concatenation: with the second-order term the two
+are at parity and concatenation is four times faster. And the second-order term
+is not a general requirement for representing interactions: it is indispensable
+to attention, which without it recovers almost nothing and misreads both
+synergistic modalities in both cohorts, and superfluous to concatenation, which
+is unharmed. Softmax attention is linear in its value vectors and so forms no
+product between two modalities' features; the factorization-machine term
+restores what the transformer removed. Note also that no arm exceeds
+\ablConcatFmSynHi\%: the ceiling is the overlap, not the head.}
+\label{tab:s-ablation}
+\fittable{\input{tables/ablation_table}}
+\end{table}
+
 % ===================================================================== %
 \clearpage
 \section{Supplementary figures}

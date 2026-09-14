@@ -436,11 +436,19 @@ Supplementary Table~\ref{tab:s-tree} give two independent ways to tell "hard to 
 
 The fusion head used throughout carries an explicit second-order term over the
 modality tokens ($\sum_{m<m'} e_m \odot e_{m'}$, computable in $O(Md)$ by the
-factorization-machine identity), on the principle that a family with no
-multiplicative path between two modalities cannot represent an interaction and
-should not be asked to measure one. We did not isolate its contribution: it was
-introduced together with a change to the training-mask distribution, and we
-report the pair rather than attribute the effect to either.
+factorization-machine identity). An earlier version of this manuscript declined
+to attribute its effect, because it had shipped alongside a change to the
+training-mask distribution. Isolating it (Methods~\ref{sec:family},
+Supplementary Table~\ref{tab:s-ablation}) gives a more specific answer than we
+expected: the term is indispensable to the transformer head and does nothing
+for a concatenation head, which recovers the synergistic terms perfectly well
+without it. It is not that interactions need an explicit multiplicative path in
+general; it is that attention, being linear in its value vectors, removes one
+that concatenation leaves available to the head. This bears on the estimator's
+tightness rather than on any result: recovery is the same for both heads once
+the term is present, and \emph{no} architecture recovers more than
+\ablConcatFmSynHi\% of the synergy at this overlap, which is the point of the
+preceding paragraphs.
 
 We report three further diagnostics with every run, because each is a way the
 analysis could be quietly wrong. The null-model gap -- how far the network's
@@ -753,17 +761,36 @@ implemented for the comparison in Supplementary~\S\ref{sec:s-raw}.
 $\Vc$ is realised as one network that encodes each modality to a common width,
 replaces the embedding of an absent modality by a learned per-modality
 ``absent'' token, and fuses the resulting tokens by a two-layer transformer
-before a multilayer-perceptron head; presence flags are also fed to the head, so
-``not ordered'' and ``ordered and unremarkable'' are distinguishable. Attention
-fusion is used because synergistic information lives in interactions between
-modalities and a concatenation head must discover those inside a generic
-multilayer perceptron; in the simulation study it recovers roughly twice as much
-of the known synergy at the same sample size. Training samples masks from a
-distribution with explicit mass on the empty set (which anchors every pointwise
-value), on the full set, and on the baseline, with Bernoulli dropout elsewhere.
-Because $\IV$ is an infimum over the family, a weaker head only ever
-\emph{under}-reports information, so architectural choices affect tightness and
-never validity.
+followed by an explicit second-order term $\sum_{m<m'} e_m \odot e_{m'}$, before
+a multilayer-perceptron head; presence flags are also fed to the head, so
+``not ordered'' and ``ordered and unremarkable'' are distinguishable. Training
+samples masks from a distribution with explicit mass on the empty set (which
+anchors every pointwise value), on the full set, and on the baseline, with
+Bernoulli dropout elsewhere.
+
+We chose attention fusion on the reasoning that synergistic information lives in
+interactions between modalities, and that attention gives every modality a
+direct path to every other where a concatenation head must find the interaction
+inside a generic multilayer perceptron. Crossing the two switches on
+\ablNCohorts\ independent cohorts shows the reasoning was wrong
+(Supplementary Table~\ref{tab:s-ablation}). Attention and concatenation recover
+the same share of the known synergy once the second-order term is present
+(\ablAttnFmSyn\% against \ablConcatFmSyn\%, with between-cohort ranges that
+overlap), and concatenation reaches it \ablSpeedup$\times$ faster. Attention
+\emph{without} the second-order term is the worst arm of the four
+(\ablAttnNoFmSyn\%, and it misreads the regime of both synergistic modalities
+in both cohorts), while concatenation without it is unharmed
+(\ablConcatNoFmSyn\%, every regime correct). Softmax attention forms a convex
+combination of value vectors -- linear in them, with data-dependent weights --
+so it does not construct products between two modalities' features; the
+factorization-machine term does, and it is repairing a deficit specific to
+attention rather than adding a capability concatenation lacks.
+
+We report the transformer configuration because it produced every number here
+and is at parity, not because it earns its cost; a replication should prefer
+concatenation. Nothing above depends on the choice: $\IV$ is an infimum over
+the family, so a weaker head only ever \emph{under}-reports information, and
+architectural choices affect tightness and never validity.
 
 \subsection{Estimation, cross-fitting and uncertainty}
 
