@@ -34,6 +34,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import torch
 
 from infogain.clinical.net_benefit import (
     bayes_value, check_identity, information_gain_nats, safe_omission_bound_local,
@@ -427,6 +428,112 @@ def rebuild_summary(out: Path, outcome: str) -> dict:
     return summary
 
 
+#: Below this, an out-of-fold value is indistinguishable from zero and a ratio
+#: against it is not a percentage -- the smoke run reported 57,347% for a
+#: quantity whose honest value is nothing. Report the bits and leave the ratio
+#: blank rather than printing a number that invites being quoted.
+OPTIMISM_PCT_FLOOR_BITS = 0.005
+
+
+def train_eval_optimism(n: int = 20000, outcome: str = "mortality_30d",
+                        seed: int = 0, train: TrainConfig | None = None
+                        ) -> pd.DataFrame:
+    r"""How optimistic is :math:`I_\mathcal{V}` when fitted and scored on the same rows?
+
+    :math:`I_\mathcal{V}` is built from an *infimum* of expected log-loss over the
+    predictor family.  Estimating an infimum on the very rows that selected it is
+    optimistic in the direction that matters: it understates
+    :math:`H_\mathcal{V}(Y\mid X)` and therefore **overstates** the information a
+    test carries.  Every number in this project is cross-fitted for that reason
+    -- each row is scored by a model trained on other subjects, and the
+    early-stopping split is carved out of the training folds so the scored rows
+    are absent from model selection too.
+
+    That protocol is a claim about the code, and a claim about code should be
+    measured rather than asserted.  This scores the identical fitted models twice
+    -- once on their own training rows, once on the held-out fold -- and reports
+    both.  The difference is the bias the protocol removes, and it is reported
+    for the full panel and for every leave-one-out conditional gain, because a
+    bias that inflates levels uniformly would cancel in the gains while one that
+    grows with subset size would not.
+    """
+    from infogain.encoders.fusion import pack
+    from infogain.vinfo.core import label_logprob, pointwise_v_information
+
+    train = train or TrainConfig(epochs=130, n_folds=4, seeds=(0, 1), patience=18)
+    cohort, gt = generate(n=n, seed=seed)
+    base, full = frozenset(cohort.spec.baseline), frozenset(cohort.spec.names)
+    want = [base, full] + [full - {m} for m in cohort.spec.orderable]
+    cf = fit_family(cohort, outcome, train, keep_models=True)
+    rows = cf.rows
+    y = cf.y
+
+    # (n_subsets, n) probabilities scored in-sample and out-of-fold by the SAME
+    # models; out-of-fold reproduces what fit_family already returns, and is
+    # recomputed here so both sides pass through one code path
+    p_in = {subset_key(s): np.full(len(rows), np.nan) for s in want}
+    p_out = {subset_key(s): np.full(len(rows), np.nan) for s in want}
+    p_null_in = np.zeros(len(rows))
+    for k, std in enumerate(cf.standardizers):
+        model = cf.fold_models[k][0]
+        model.eval()
+        te = np.where(cf.fold_id == k)[0]
+        tr = np.where(cf.fold_id != k)[0]
+        data = pack(cohort, outcome, std, rows)
+        # the PVI anchor must also be fold-honest: the training prevalence
+        p_null_in[tr] = float(np.clip(y[tr].mean(), 1e-5, 1 - 1e-5))
+        with torch.no_grad():
+            for s in want:
+                pres = model.subset_presence(data.observed, s)
+                pr = torch.sigmoid(model(data.x, pres)).cpu().numpy()
+                p_in[subset_key(s)][tr] = pr[tr]
+                p_out[subset_key(s)][te] = pr[te]
+
+    def info(probs, mask, subset):
+        p0 = np.where(mask, p_null_in, np.nan)
+        pv = pointwise_v_information(
+            label_logprob(probs[subset_key(subset)][mask], y[mask]),
+            label_logprob(p0[mask], y[mask]))
+        return float(pv.mean())
+
+    all_rows = np.ones(len(rows), bool)
+    truth = ground_truth_table(gt, outcome, baseline=sorted(base),
+                               respect_observation=True).set_index("modality")
+    out = []
+    for label, subset in ([("full panel", full), ("baseline", base)]
+                          + [(f"full minus {m}", full - {m})
+                             for m in cohort.spec.orderable]):
+        # in-sample: each row scored by the folds that trained on it (k != its
+        # own fold), averaged; out-of-fold: by the one fold that did not
+        ins = np.nanmean([info(p_in, cf.fold_id != k, subset)
+                          for k in range(train.n_folds)])
+        oof = np.nanmean([info(p_out, cf.fold_id == k, subset)
+                          for k in range(train.n_folds)])
+        out.append({"quantity": label, "in_sample_bits": ins,
+                    "out_of_fold_bits": oof, "optimism_bits": ins - oof,
+                    "optimism_pct": (100.0 * (ins - oof) / abs(oof)
+                                     if abs(oof) > OPTIMISM_PCT_FLOOR_BITS
+                                     else float("nan")),
+                    "n": n})
+    df = pd.DataFrame(out)
+    # the same comparison for the conditional gains, which is what the paper
+    # reports -- a bias that cancels in differences matters far less
+    fullrow = df[df["quantity"] == "full panel"].iloc[0]
+    gains = []
+    for m in cohort.spec.orderable:
+        r = df[df["quantity"] == f"full minus {m}"].iloc[0]
+        gi = fullrow["in_sample_bits"] - r["in_sample_bits"]
+        go = fullrow["out_of_fold_bits"] - r["out_of_fold_bits"]
+        gains.append({"quantity": f"gain {m}", "in_sample_bits": gi,
+                      "out_of_fold_bits": go, "optimism_bits": gi - go,
+                      "optimism_pct": (100.0 * (gi - go) / abs(go)
+                                       if abs(go) > OPTIMISM_PCT_FLOOR_BITS
+                                       else float("nan")),
+                      "true_bits": float(truth.loc[m, "conditional"])
+                      if m in truth.index else float("nan"), "n": n})
+    return pd.concat([df, pd.DataFrame(gains)], ignore_index=True)
+
+
 def architecture_ablation(n: int = 50000, outcome: str = "mortality_30d",
                           seed: int = 0, train: TrainConfig | None = None,
                           data_seeds: tuple[int, ...] = (0, 1)) -> pd.DataFrame:
@@ -592,6 +699,10 @@ def main() -> None:  # pragma: no cover - CLI
                     help="recompute summary.json from saved tables, no refitting")
     ap.add_argument("--targeting-n", type=int, default=50000,
                     help="cohort size for the per-patient targeting study")
+    ap.add_argument("--optimism-only", action="store_true",
+                    help="run only the train/eval optimism measurement and exit")
+    ap.add_argument("--optimism-n", type=int, default=20000,
+                    help="cohort size for the train/eval optimism measurement")
     ap.add_argument("--ablation-only", action="store_true",
                     help="run only the fusion-architecture ablation and exit")
     ap.add_argument("--ablation-n", type=int, default=50000,
@@ -622,6 +733,13 @@ def main() -> None:  # pragma: no cover - CLI
         args.epochs, args.folds, args.seeds = 25, 3, 1
         args.targeting_n = 4000
         args.ablation_n = 4000
+        args.optimism_n = 4000
+
+    if args.optimism_only:
+        opt = train_eval_optimism(args.optimism_n, args.outcome, args.seed, train)
+        opt.to_csv(out / "tables" / "train_eval_optimism.csv", index=False)
+        print(opt.round(4).to_string(index=False))
+        return
 
     if args.ablation_only:
         abl = architecture_ablation(args.ablation_n, args.outcome, args.seed, train)
