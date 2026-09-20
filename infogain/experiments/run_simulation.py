@@ -435,6 +435,101 @@ def rebuild_summary(out: Path, outcome: str) -> dict:
 OPTIMISM_PCT_FLOOR_BITS = 0.005
 
 
+def head_capacity_sweep(n: int = 18000, outcome: str = "mortality_30d",
+                        heads: tuple[int, ...] = (1, 2, 4, 8, 16),
+                        data_seeds: tuple[int, ...] = (0, 1),
+                        train: TrainConfig | None = None) -> pd.DataFrame:
+    r"""Is attention's cross-modal capacity set by the number of heads? (H_B1)
+
+    The manuscript previously said softmax attention "does not construct
+    products between two modalities' features".  That is false, and the way it
+    is false is informative.  The *value* path is a convex combination of value
+    vectors and so is linear in them -- but the weight
+    :math:`a=\mathrm{softmax}(q\cdot k)` is itself a bilinear form in one
+    modality's query and another's key.  A cross-modal product therefore exists;
+    it is squeezed through one scalar per head.  The prediction that follows is
+    that recovery of a known synergistic interaction should rise with head count
+    and then saturate, with no explicit second-order term present to supply the
+    product by another route.
+
+    Two arms, because head count cannot be varied innocently.  With the
+    embedding width fixed at 48, going to 16 heads leaves 3 dimensions per head,
+    so a decline at the top of the range is ambiguous between capacity
+    saturating and each head being starved.  The second arm holds the per-head
+    dimension fixed and lets the width grow, which separates them: if recovery
+    tracks head count in both arms it is the heads, and if it tracks only the
+    arm whose width grows it was never the heads.
+
+    Run under *complete* acquisition deliberately.  Under realistic acquisition
+    the binding constraint is the number of events with both modalities present,
+    which this project has already established and which would mask an
+    architectural effect.  Removing it makes any remaining deficit the head's.
+    """
+    from dataclasses import replace
+
+    train = train or TrainConfig(epochs=130, n_folds=3, seeds=(0, 1, 2), patience=18)
+    rows = []
+    for data_seed in data_seeds:
+        design = default_design()
+        design.missingness = {m: (12.0, 0.0) for m in design.missingness}
+        cohort, gt = generate(design, n=n, seed=data_seed)
+        base, full = cohort.spec.baseline, frozenset(cohort.spec.names)
+        truth = ground_truth_table(gt, outcome, baseline=sorted(base),
+                                   respect_observation=True).set_index("modality")
+        y = cohort.y(outcome)
+        both = (cohort.blocks["ecg"].observed & cohort.blocks["cxr"].observed)
+        base_cfg = train.family if train.family else FamilyConfig()
+        for arm in ("fixed_width", "fixed_head_dim"):
+            for h in heads:
+                if arm == "fixed_width":
+                    emb = base_cfg.emb_dim
+                    if emb % h:
+                        continue
+                else:
+                    # hold the per-head dimension at the 4-head default and let
+                    # the width follow, so capacity and per-head width separate
+                    emb = (base_cfg.emb_dim // 4) * h
+                cfg = replace(base_cfg, fusion="attention", use_fm=False,
+                              n_heads=h, emb_dim=emb)
+                t0 = time.time()
+                cf = fit_family(cohort, outcome, replace(train, family=cfg))
+                secs = time.time() - t0
+                log.info("heads arm=%s h=%d emb=%d cohort=%d fitted in %.0fs",
+                         arm, h, emb, data_seed, secs)
+                est = decomposition_table(cf, n_perm=1).set_index("modality")
+                for m in est.index:
+                    if m not in truth.index:
+                        continue
+                    t, e = truth.loc[m], est.loc[m]
+                    rows.append({
+                        "arm": arm, "n_heads": h, "emb_dim": emb,
+                        "head_dim": emb // h, "data_seed": data_seed,
+                        "modality": m,
+                        "true_regime": regime_of(t["marginal"], t["conditional"]),
+                        "est_regime": regime_of(e["marginal_bits"],
+                                                e["conditional_bits"]),
+                        "true_conditional": t["conditional"],
+                        "est_conditional": e["conditional_bits"],
+                        "i_full_est": float(cf.pvi(full).mean()),
+                        "fit_seconds": secs, "n": n,
+                        "events_with_both": int((y * both).sum()),
+                    })
+    out = pd.DataFrame(rows)
+    if out.empty:
+        return out
+    out["regime_correct"] = out["true_regime"] == out["est_regime"]
+    syn = out[out["true_regime"] == "synergistic"]
+    if not syn.empty:
+        share = (syn.groupby(["arm", "n_heads", "data_seed"])
+                 .apply(lambda g: g["est_conditional"].sum()
+                        / max(g["true_conditional"].sum(), 1e-12),
+                        include_groups=False)
+                 .rename("syn_recovered"))
+        out = out.merge(share.reset_index(),
+                        on=["arm", "n_heads", "data_seed"], how="left")
+    return out
+
+
 def train_eval_optimism(n: int = 20000, outcome: str = "mortality_30d",
                         seed: int = 0, train: TrainConfig | None = None
                         ) -> pd.DataFrame:
@@ -699,6 +794,10 @@ def main() -> None:  # pragma: no cover - CLI
                     help="recompute summary.json from saved tables, no refitting")
     ap.add_argument("--targeting-n", type=int, default=50000,
                     help="cohort size for the per-patient targeting study")
+    ap.add_argument("--heads-only", action="store_true",
+                    help="run only the attention head-capacity sweep (H_B1) and exit")
+    ap.add_argument("--heads-n", type=int, default=18000,
+                    help="cohort size for the head-capacity sweep")
     ap.add_argument("--optimism-only", action="store_true",
                     help="run only the train/eval optimism measurement and exit")
     ap.add_argument("--optimism-n", type=int, default=20000,
@@ -734,6 +833,13 @@ def main() -> None:  # pragma: no cover - CLI
         args.targeting_n = 4000
         args.ablation_n = 4000
         args.optimism_n = 4000
+        args.heads_n = 3000
+
+    if args.heads_only:
+        hs = head_capacity_sweep(args.heads_n, args.outcome, train=train)
+        hs.to_csv(out / "tables" / "head_capacity.csv", index=False)
+        print(hs.round(4).to_string(index=False))
+        return
 
     if args.optimism_only:
         opt = train_eval_optimism(args.optimism_n, args.outcome, args.seed, train)
