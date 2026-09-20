@@ -441,10 +441,10 @@ def head_capacity_sweep(n: int = 18000, outcome: str = "mortality_30d",
                         train: TrainConfig | None = None) -> pd.DataFrame:
     r"""Is attention's cross-modal capacity set by the number of heads? (H_B1)
 
-    The manuscript previously said softmax attention "does not construct
-    products between two modalities' features".  That is false, and the way it
-    is false is informative.  The *value* path is a convex combination of value
-    vectors and so is linear in them -- but the weight
+    An earlier draft said softmax attention "does not construct products between
+    two modalities' features".  That is false, and the way it is false is
+    informative.  The *value* path is a convex combination of value vectors and
+    so is linear in them -- but the weight
     :math:`a=\mathrm{softmax}(q\cdot k)` is itself a bilinear form in one
     modality's query and another's key.  A cross-modal product therefore exists;
     it is squeezed through one scalar per head.  The prediction that follows is

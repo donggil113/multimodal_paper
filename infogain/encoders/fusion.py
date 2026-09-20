@@ -54,9 +54,11 @@ class FamilyConfig:
     #: recover 58% and 57% of the known synergy, ranges overlapping, and concat
     #: is 4x faster; without it attention collapses to 6% and misreads both
     #: synergistic modalities, while concat is unharmed at 46%.  Softmax
-    #: attention is a convex combination of value vectors -- linear in them --
-    #: so it forms no product between two modalities' features; ``use_fm``
-    #: repairs that, and concat never needed the repair.
+    #: attention DOES form a cross-modal product -- the logit is bilinear in one
+    #: modality's query and another's key -- but the only route by which two
+    #: modalities jointly determine a head's output is that head's scalar
+    #: weight, so capacity is bounded by head count; ``use_fm`` supplies the
+    #: products directly, and concat never needed the repair.
     #:
     #: ``"concat"`` is the default: at parity on recovery and 4x cheaper, and
     #: reporting numbers from a head we recommend against is a weakness, not a

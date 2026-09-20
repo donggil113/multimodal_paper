@@ -807,9 +807,10 @@ are at parity and concatenation is four times faster. And the second-order term
 is not a general requirement for representing interactions: it is indispensable
 to attention, which without it recovers almost nothing and misreads both
 synergistic modalities in both cohorts, and superfluous to concatenation, which
-is unharmed. Softmax attention is linear in its value vectors and so forms no
-product between two modalities' features; the factorization-machine term
-restores what the transformer removed. Note also that no arm exceeds
+is unharmed. Softmax attention does form a cross-modal product -- the attention
+logit is bilinear in one modality's query and another's key -- but routes it
+through a single scalar per head, so the capacity is bounded by the head count;
+the factorization-machine term supplies the products directly. Note also that no arm exceeds
 \ablConcatFmSynHi\%: the ceiling is the overlap, not the head.}
 \label{tab:s-ablation}
 \fittable{\input{tables/ablation_table}}

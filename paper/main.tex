@@ -443,8 +443,9 @@ Supplementary Table~\ref{tab:s-ablation}) gives a more specific answer than we
 expected: the term is indispensable to the transformer head and does nothing
 for a concatenation head, which recovers the synergistic terms perfectly well
 without it. It is not that interactions need an explicit multiplicative path in
-general; it is that attention, being linear in its value vectors, removes one
-that concatenation leaves available to the head. This bears on the estimator's
+general; it is that attention routes all cross-modal coupling through one
+scalar per head, where concatenation leaves the features adjacent for the head
+to multiply. This bears on the estimator's
 tightness rather than on any result: recovery is the same for both heads once
 the term is present, and \emph{no} architecture recovers more than
 \ablConcatFmSynHi\% of the synergy at this overlap, which is the point of the
@@ -780,11 +781,35 @@ overlap), and concatenation reaches it \ablSpeedup$\times$ faster. Attention
 \emph{without} the second-order term is the worst arm of the four
 (\ablAttnNoFmSyn\%, and it misreads the regime of both synergistic modalities
 in both cohorts), while concatenation without it is unharmed
-(\ablConcatNoFmSyn\%, every regime correct). Softmax attention forms a convex
-combination of value vectors -- linear in them, with data-dependent weights --
-so it does not construct products between two modalities' features; the
-factorization-machine term does, and it is repairing a deficit specific to
-attention rather than adding a capability concatenation lacks.
+(\ablConcatNoFmSyn\%, every regime correct). The reason is a capacity bottleneck, not an
+absence. Write the head-$h$ output for a query token attending over modality
+tokens $1$ and $2$ as
+\[
+  o_h \;=\; a_h v_h(e_1) + (1-a_h) v_h(e_2)
+       \;=\; v_h(e_2) + a_h\big(v_h(e_1)-v_h(e_2)\big),
+  \qquad a_h=\sigma(z_h),
+\]
+with $z_h \propto q_h(e_1)^\top k_h(e_1) - q_h(e_1)^\top k_h(e_2)$. The value
+path is linear in the value vectors, and $v_h(e_1)$, $v_h(e_2)$ each depend on
+one modality alone. A cross-modal product therefore does exist -- $z_h$ is
+bilinear in one modality's query and the other's key -- but the \emph{only}
+route by which $e_1$ and $e_2$ jointly determine $o_h$ is the scalar $a_h$. Each
+head supplies exactly one such channel, so the block's cross-modal interaction
+capacity grows with the number of heads and not otherwise. Expanding
+$a_h \approx a^0 + a^0(1-a^0)z_h$ makes the second constraint visible: the same
+scalar multiplies $v_h(e_1)$ and $v_h(e_2)$, so within a head the cross-modal
+terms cannot be given coefficients independent of the within-modality ones. The
+factorization-machine term supplies the products directly and is therefore
+repairing a bottleneck specific to attention, rather than adding a capability
+concatenation lacks -- concatenation leaves the features adjacent for the head
+to multiply, where the transformer pools them first.
+
+This predicts that with no second-order term, recovery of a known synergistic
+interaction should rise with head count and saturate. \texttt{head\_capacity\_%
+sweep} tests it over $1,2,4,8,16$ heads on two cohorts under complete
+acquisition, with a second arm holding the per-head dimension fixed, since at
+width 48 the sixteen-head setting leaves three dimensions per head and a decline
+would otherwise be ambiguous between saturation and starvation.
 
 We report the transformer configuration because it produced every number here
 and is at parity, not because it earns its cost; a replication should prefer
