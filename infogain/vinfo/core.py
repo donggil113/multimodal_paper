@@ -282,12 +282,20 @@ def paired_gain(pvi_large: np.ndarray, pvi_small: np.ndarray,
     cancels exactly and the pairing removes the (large) patient-level variance
     that dominates each term separately.  Estimating the gain as a difference of
     two independently-computed cohort means instead inflates the standard error
-    by a factor of :math:`\sqrt{\mathrm{var}(a)+\mathrm{var}(b)}/\mathrm{sd}(a-b)`,
-    which on the simulator runs from 1.8 (labs, where the two models differ
-    most) to 5.9 (echo, where they barely differ), median 4.1 -- large, but not
-    the order of magnitude an earlier version of this docstring claimed.  The
-    factor is set by the correlation between the two PVI vectors, not by the
-    cohort size.
+    by :math:`\sqrt{\mathrm{var}(a)+\mathrm{var}(b)}/\mathrm{sd}(a-b)`, which
+    for equal variances is exactly
+
+    .. math:: \frac{1}{\sqrt{1-\rho}},\qquad \rho=\mathrm{corr}(a,b).
+
+    So the factor is set by how strongly the two PVI vectors correlate and not
+    by the cohort size -- both standard errors scale as :math:`n^{-1/2}` and the
+    ratio cancels it.  On the simulator :math:`\rho` runs from 0.72 for the
+    laboratory panel, where adding the modality genuinely changes the model, to
+    0.97 for the echocardiogram, where it barely does; the measured factors are
+    1.8 and 5.9 against closed-form 1.90 and 5.90, the small shortfall being the
+    unequal variances the closed form assumes away.  Median over modalities 4.1.
+    An earlier version of this docstring claimed "roughly an order of
+    magnitude", which was folklore: 10x needs :math:`\rho=0.99`.
     """
     diff = np.asarray(pvi_large, dtype=np.float64) - np.asarray(pvi_small, dtype=np.float64)
     out = v_info_from_pvi(diff, alpha=alpha, method=method, clip=clip)

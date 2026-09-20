@@ -75,36 +75,49 @@ def test_bernstein_coverage():
     assert cover / 300 >= 0.95
 
 
-def test_paired_gain_is_tighter_than_unpaired():
+def test_paired_gain_matches_the_closed_form_se_ratio():
+    """Pairing buys exactly 1/sqrt(1-rho) in standard error, for equal variances.
+
+    This fixture used to assert only ``se < unpaired/5``, which passes on algebra
+    alone and told us nothing: the shared sd of 3.0 against an idiosyncratic 0.2
+    puts rho at 9/9.04 = 0.9956, where the closed form is 15.0.  A docstring that
+    read "roughly an order of magnitude" survived next to it for that reason.
+    Checking against the closed form makes the fixture informative about the
+    quantity the docstring actually quotes.
+    """
     rng = np.random.default_rng(2)
     common = rng.normal(0, 3.0, 5000)      # large shared patient-level variance
     a = common + rng.normal(0.05, 0.2, 5000)
     b = common + rng.normal(0.0, 0.2, 5000)
+    rho = float(np.corrcoef(a, b)[0, 1])
+    assert abs(rho - 9.0 / 9.04) < 1e-3, rho          # not 0.998, as once claimed
+    ratio = np.sqrt(a.var(ddof=1) + b.var(ddof=1)) / (a - b).std(ddof=1)
+    assert abs(ratio - 1.0 / np.sqrt(1.0 - rho)) < 0.15 * ratio
     paired = paired_gain(a, b)
     unpaired_se = np.sqrt(a.var(ddof=1) / 5000 + b.var(ddof=1) / 5000)
     assert paired.se < unpaired_se / 5
 
 
-def test_paired_gain_still_helps_at_realistic_correlation():
-    """The existing test uses a contrived correlation; this uses the measured one.
+@pytest.mark.parametrize("rho", [0.72, 0.97])
+def test_paired_gain_follows_the_closed_form_at_measured_correlations(rho):
+    """The two correlations actually observed on fitted models.
 
-    With shared sd 3.0 against idiosyncratic 0.2 the two PVI vectors correlate at
-    0.998 and pairing looks like a factor of 15.  On fitted models the
-    correlation between pvi(S+m) and pvi(S) runs 0.72 (labs) to 0.97 (echo), and
-    the benefit is 1.8x to 5.9x.  Pinning the worst realistic case keeps the
-    docstring's numbers honest: if a change to the estimator erodes the pairing,
-    the contrived test would still pass and this one would not.
+    0.72 is the laboratory panel and 0.97 the echocardiogram -- the range over
+    which the paper quotes 1.8x to 5.9x.  Pinning both ends means a change to
+    the estimator that erodes the pairing fails here even though the
+    high-correlation fixture above would still pass.
     """
     rng = np.random.default_rng(11)
-    n, rho = 20000, 0.72
+    n = 40000
     z1, z2 = rng.normal(0, 1, n), rng.normal(0, 1, n)
     a = z1
     b = rho * z1 + np.sqrt(1 - rho ** 2) * z2
     ratio = np.sqrt(a.var(ddof=1) + b.var(ddof=1)) / (a - b).std(ddof=1)
-    assert 1.5 < ratio < 2.5, ratio          # algebra: sqrt(2/(2-2rho)) = 1.89
+    closed = 1.0 / np.sqrt(1.0 - rho)
+    assert abs(ratio - closed) < 0.05 * closed, (ratio, closed)
     paired = paired_gain(a, b)
     unpaired_se = np.sqrt(a.var(ddof=1) / n + b.var(ddof=1) / n)
-    assert paired.se < unpaired_se / 1.5
+    assert paired.se < unpaired_se / (0.9 * closed)
 
 
 def test_permutation_pvalue_calibrated_under_the_null():

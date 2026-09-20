@@ -58,12 +58,13 @@ class FamilyConfig:
     #: so it forms no product between two modalities' features; ``use_fm``
     #: repairs that, and concat never needed the repair.
     #:
-    #: ``"attention"`` remains the default only because it produced the
-    #: published numbers and is at parity.  Prefer ``"concat"`` for new work.
-    #: Because the estimator is an infimum over the family, a weaker head only
-    #: ever *under*-reports information, so this choice affects tightness,
-    #: never validity.
-    fusion: str = "attention"
+    #: ``"concat"`` is the default: at parity on recovery and 4x cheaper, and
+    #: reporting numbers from a head we recommend against is a weakness, not a
+    #: conservatism.  ``results/diff_default_switch.json`` records what changed
+    #: when the default moved off ``"attention"``.  Because the estimator is an
+    #: infimum over the family, a weaker head only ever *under*-reports
+    #: information, so this choice affects tightness, never validity.
+    fusion: str = "concat"
     n_attn_layers: int = 2
     n_heads: int = 4
     #: Add an explicit second-order term over the modality tokens,

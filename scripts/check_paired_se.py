@@ -42,16 +42,20 @@ def main() -> None:
     full = frozenset(cohort.spec.names)
 
     print(f"{'modality':10s} {'sd(a-b)':>10s} {'sqrt(va+vb)':>12s} "
-          f"{'ratio':>7s} {'corr':>8s}")
+          f"{'ratio':>7s} {'1/sqrt(1-r)':>12s} {'corr':>8s}")
     ratios = []
     for m in cohort.spec.orderable:
         a, b = cf.pvi(full), cf.pvi(full - {m})
         paired = float(np.std(a - b, ddof=1))
         unpaired = float(np.sqrt(np.var(a, ddof=1) + np.var(b, ddof=1)))
         ratio = unpaired / max(paired, 1e-12)
+        rho = float(np.corrcoef(a, b)[0, 1])
+        # the closed form assumes equal variances; printing both shows how much
+        # of any gap is that assumption rather than an estimator problem
+        closed = 1.0 / np.sqrt(max(1.0 - rho, 1e-12))
         ratios.append(ratio)
         print(f"{m:10s} {paired:10.4f} {unpaired:12.4f} {ratio:6.1f}x "
-              f"{np.corrcoef(a, b)[0, 1]:8.4f}")
+              f"{closed:11.2f}x {rho:8.4f}")
     print(f"\nrange {min(ratios):.1f}x - {max(ratios):.1f}x   "
           f"median {float(np.median(ratios)):.1f}x")
 
