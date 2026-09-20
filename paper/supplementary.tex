@@ -816,6 +816,22 @@ the factorization-machine term supplies the products directly. Note also that no
 \fittable{\input{tables/ablation_table}}
 \end{table}
 
+\begin{table}[htbp]\centering\small
+\caption{Everything the default-architecture switch moved. All numbers in this
+manuscript were regenerated after the fusion head changed from attention to
+concatenation, on identical data, and the two states were diffed key by key
+(\texttt{results/diff\_default\_switch.json}, \switchNKeys\ numeric keys). The
+median absolute relative change is \switchMedianChange\%, \switchIncreased\% of
+values rose, and \emph{no} finding changed direction: all \switchNSignFlips\
+sign flips are quantities oscillating about zero, none above the floor for its
+unit. What did change is four categorical regime calls, listed here. Three are
+modality pairs that concatenation resolves as synergistic where attention could
+not separate them from zero, which is the ablation's mechanism showing up in the
+cohort results rather than a new effect.}
+\label{tab:s-switch}
+\fittable{\input{tables/switch_table}}
+\end{table}
+
 % ===================================================================== %
 \clearpage
 \section{Supplementary figures}

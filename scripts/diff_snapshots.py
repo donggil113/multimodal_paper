@@ -23,9 +23,26 @@ import argparse
 import json
 from pathlib import Path
 
-#: below this many bits, a sign flip is noise flipping around zero rather than a
-#: finding changing direction; reported separately so neither is hidden
-SIGN_FLIP_FLOOR_BITS = 0.002
+#: A sign flip matters only if the quantity was ever far enough from zero to
+#: have a sign. The threshold is unit-dependent, and applying one floor to
+#: everything mislabels: a Spearman correlation going 0.048 -> -0.008 passed a
+#: 0.002-"bits" test and is plainly noise around zero, while 0.002 bits is a
+#: real conditional gain. Floors are therefore keyed by what the number is.
+FLOORS = {
+    "bits": 0.002,          # information quantities
+    "spearman": 0.10,       # rank correlations: below this there is no ordering
+    "share": 0.05,          # Shapley shares, fractions of a total
+    "auroc": 0.005,         # matches the policy matching tolerance
+    None: 0.01,             # anything unrecognised
+}
+
+
+def floor_for(key: str) -> float:
+    k = key.lower()
+    for tag, v in FLOORS.items():
+        if tag and tag in k:
+            return v
+    return FLOORS[None]
 
 
 def load(p: Path) -> dict:
@@ -67,9 +84,10 @@ def main() -> None:
         rows.append({"key": k, "before": b, "after": c, "delta": d,
                      "rel": d / scale if scale > 1e-12 else 0.0})
         if b * c < 0:
+            fl = floor_for(k)
             sign_flips.append({"key": k, "before": b, "after": c, "delta": d,
-                               "material": bool(max(abs(b), abs(c))
-                                                > SIGN_FLIP_FLOOR_BITS)})
+                               "floor": fl,
+                               "material": bool(max(abs(b), abs(c)) > fl)})
 
     numeric = [r for r in rows if abs(r["before"]) > 1e-9 or abs(r["after"]) > 1e-9]
     moved_up = sum(1 for r in numeric if r["delta"] > 0)
@@ -101,7 +119,7 @@ def main() -> None:
     print(f"  increased                : {out['fraction_increased']:.1%} "
           f"(I_V is an infimum, so a better family should raise estimates)")
     print(f"  sign flips               : {len(sign_flips)} "
-          f"({out['n_sign_flips_material']} above {SIGN_FLIP_FLOOR_BITS} bits)")
+          f"({out['n_sign_flips_material']} above the floor for their unit)")
     print(f"  regime/categorical flips : {len(regime_flips)}")
     if out["n_only_before"] or out["n_only_after"]:
         print(f"  keys only before/after   : {out['n_only_before']}/{out['n_only_after']}")

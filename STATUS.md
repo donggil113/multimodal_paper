@@ -100,6 +100,18 @@ disappearing.
 | policy reduction at matched AUROC | `policy_frontier.csv`, `policy_comparators.csv` | numerically verified |
 | MNAR sensitivity | `results/sensitivity_mnar/` | numerically verified |
 
+**Default architecture.** All numbers were regenerated after the fusion head
+changed from attention to concatenation (T1), at 5 training seeds, on identical
+data. `results/diff_default_switch.json` records the comparison over 691 numeric
+keys: median absolute relative change 2.2%, 45% of values rose, **zero material
+sign flips** — all seven sign changes are quantities oscillating about zero.
+Four categorical regime calls moved (Supplementary Table S12), three of them
+modality pairs that concatenation resolves as synergistic where attention could
+not separate them from zero. Two paper claims were rewritten because the new
+numbers falsified them: the synergistic-regime recovery sentence, now generated
+from `regime_by_size.csv` rather than described in prose, and the per-patient
+rank correlations, which fell from 0.43–0.60 to 0.25–0.50.
+
 **The load-bearing caveat.** These are properties of the calibrated simulator,
 not of patients. MIMIC-IV requires credentialed PhysioNet access, and in this
 environment `physionet.org:443` is additionally refused at the network layer.

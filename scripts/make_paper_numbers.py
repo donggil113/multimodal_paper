@@ -60,6 +60,8 @@ REQUIRED = [
     "powTreeSynMax", "restrictedShareMin", "restrictedShareMax",
     "powMidAN", "powMidAEvents", "powMidARecovery",
     "powMidBN", "powMidBEvents", "powMidBRecovery",
+    "regimeSynSmall", "regimeSynSmallN", "regimeSynMid", "regimeSynMidN",
+    "regimeSynLarge", "regimeSynLargeN",
     "acqLabs", "acqEcg", "acqCxr", "acqEcho",
     "thyThmOneInformative", "exGlobalNb", "exLocalNb",
     "tgtSignalRhoMin", "tgtSignalRhoMax", "tgtSignalCaptureMin",
@@ -68,6 +70,8 @@ REQUIRED = [
     "flipNPairs", "flipPairA", "flipPairB", "flipSynEndpoint", "flipRedEndpoint",
     "flipSynBits", "flipRedBits",
     "ablSpeedup", "ablNCohorts",
+    "switchNKeys", "switchMedianChange", "switchIncreased", "switchNSignFlips",
+    "switchNMaterial", "switchNRegimeFlips",
     "permNPerm", "permFloor", "decEchoNullPMin",
     "thyWitnessResidual", "certTightenMin", "certTightenMax", "shapleyEffResidual",
     "redAvoidedMin", "redAvoidedMax",
@@ -215,6 +219,14 @@ def main() -> None:
               f"{min(r['first_correct_n'] for r in red):,}".replace(",", "{,}")
               if red else None)
 
+    rb = load_csv(R / "simulation" / "tables" / "regime_by_size.csv")
+    if rb is not None and "synergistic" in rb.columns:
+        rb = rb.sort_values("n")
+        for tag, row in (("Small", rb.iloc[0]), ("Mid", rb.iloc[len(rb) // 2]),
+                         ("Large", rb.iloc[-1])):
+            M.add(f"regimeSyn{tag}", _pct(row["synergistic"], 0))
+            M.add(f"regimeSyn{tag}N", f"{int(row['n']):,}".replace(",", "{,}"))
+
     # the middle pair of the power grid: the comparison that separates overlap
     # from cohort size, so each of its numbers is generated rather than typed
     pw = load_csv(R / "simulation" / "tables" / "synergy_power.csv")
@@ -357,6 +369,17 @@ def main() -> None:
             M.add("redAvoidedMin", f"{100 * min(avoided):.0f}")
             M.add("redAvoidedMax", f"{100 * max(avoided):.0f}")
 
+
+    # ---- what the default-architecture switch moved --------------------- #
+    sw = R / "diff_default_switch.json"
+    if sw.exists():
+        j = load_json(sw)
+        M.add("switchNKeys", f"{j['n_keys_compared']:,}".replace(",", "{,}"))
+        M.add("switchMedianChange", _pct(j["median_abs_relative_change"], 1))
+        M.add("switchIncreased", _pct(j["fraction_increased"], 0))
+        M.add("switchNSignFlips", j["n_sign_flips"])
+        M.add("switchNMaterial", j["n_sign_flips_material"])
+        M.add("switchNRegimeFlips", j["n_regime_flips"])
 
     # ---- fusion architecture ablation ----------------------------------- #
     ab = load_csv(R / "simulation" / "tables" / "architecture_ablation.csv")

@@ -169,6 +169,29 @@ def main() -> None:
     else:
         write(None, out / "tree_reference_table.tex")
 
+    # what the default-architecture switch moved
+    sw = Path(args.results) / "diff_default_switch.json"
+    if sw.exists():
+        j = json.loads(sw.read_text())
+        rows = []
+        for f in j.get("regime_flips", []):
+            ep, _, rest = f["key"].partition(".interaction_map.")
+            pair = rest.rsplit(".", 1)[0].replace(".", "--") if rest else f["key"]
+            rows.append({"endpoint": ep.replace("_", " "), "pair": pair,
+                         "under attention": f["before"], "under concat": f["after"],
+                         "sign flip?": "no"})
+        for f in j.get("sign_flips", []):
+            if not f.get("material"):
+                continue
+            rows.append({"endpoint": f["key"].split(".")[0].replace("_", " "),
+                         "pair": f["key"].split(".", 1)[1],
+                         "under attention": f"{f['before']:+.4f}",
+                         "under concat": f"{f['after']:+.4f}", "sign flip?": "yes"})
+        write(pd.DataFrame(rows) if rows else None, out / "switch_table.tex",
+              align="llllc")
+    else:
+        write(None, out / "switch_table.tex")
+
     # fusion-architecture ablation
     ab = R / "simulation" / "tables" / "architecture_ablation.csv"
     if ab.exists():

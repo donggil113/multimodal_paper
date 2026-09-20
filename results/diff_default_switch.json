@@ -1,0 +1,273 @@
+{
+ "labels": {
+  "before": "attention+FM",
+  "after": "concat+FM"
+ },
+ "n_keys_compared": 691,
+ "n_only_before": 0,
+ "n_only_after": 0,
+ "only_before": [],
+ "only_after": [],
+ "median_abs_relative_change": 0.02249630818430386,
+ "fraction_increased": 0.4472361809045226,
+ "n_sign_flips": 7,
+ "n_sign_flips_material": 0,
+ "sign_flips": [
+  {
+   "key": "aki_7d.gain_consistency.labs.spearman",
+   "before": 0.0484967623842049,
+   "after": -0.0075461640964874,
+   "delta": -0.056042926480692305,
+   "floor": 0.1,
+   "material": false
+  },
+  {
+   "key": "icu_transfer_48h.gain_consistency.echo.spearman",
+   "before": -0.0010861459060355,
+   "after": 0.0255069206509466,
+   "delta": 0.0265930665569821,
+   "floor": 0.1,
+   "material": false
+  },
+  {
+   "key": "icu_transfer_48h.shapley.ecg.share",
+   "before": -0.0165224803979111,
+   "after": 0.0018486508987819,
+   "delta": 0.018371131296693,
+   "floor": 0.05,
+   "material": false
+  },
+  {
+   "key": "icu_transfer_48h.gain_consistency.ecg.spearman",
+   "before": -0.0024100065089361,
+   "after": 0.00655656385431,
+   "delta": 0.0089665703632461,
+   "floor": 0.1,
+   "material": false
+  },
+  {
+   "key": "icu_transfer_48h.decomposition.leave_one_out.ecg.conditional_bits",
+   "before": -0.0003318951390008,
+   "after": 0.0006879272256252,
+   "delta": 0.001019822364626,
+   "floor": 0.002,
+   "material": false
+  },
+  {
+   "key": "icu_transfer_48h.shapley.ecg.shapley_bits",
+   "before": -0.0005262256385682,
+   "after": 6.387767080663261e-05,
+   "delta": 0.0005901033093748326,
+   "floor": 0.002,
+   "material": false
+  },
+  {
+   "key": "icu_transfer_48h.interaction_map.ecg.echo.interaction_bits",
+   "before": -0.0001303153665841,
+   "after": 3.0787401064830274e-05,
+   "delta": 0.00016110276764893028,
+   "floor": 0.002,
+   "material": false
+  }
+ ],
+ "n_regime_flips": 4,
+ "regime_flips": [
+  {
+   "key": "hf_readmission_30d.interaction_map.ecg.cxr.regime",
+   "before": "indeterminate",
+   "after": "synergistic"
+  },
+  {
+   "key": "hf_readmission_30d.interaction_map.ecg.echo.regime",
+   "before": "indeterminate",
+   "after": "synergistic"
+  },
+  {
+   "key": "icu_transfer_48h.interaction_map.ecg.cxr.regime",
+   "before": "indeterminate",
+   "after": "synergistic"
+  },
+  {
+   "key": "mortality_30d.interaction_map.ecg.echo.regime",
+   "before": "redundant",
+   "after": "indeterminate"
+  }
+ ],
+ "largest_relative_moves": [
+  {
+   "key": "icu_transfer_48h.decomposition.leave_one_out.ecg.conditional_bits",
+   "before": -0.0003318951390008,
+   "after": 0.0006879272256252,
+   "delta": 0.001019822364626,
+   "rel": 1.4824567579792587
+  },
+  {
+   "key": "icu_transfer_48h.gain_consistency.ecg.spearman",
+   "before": -0.0024100065089361,
+   "after": 0.00655656385431,
+   "delta": 0.0089665703632461,
+   "rel": 1.367571575979065
+  },
+  {
+   "key": "icu_transfer_48h.interaction_map.ecg.echo.interaction_bits",
+   "before": -0.0001303153665841,
+   "after": 3.0787401064830274e-05,
+   "delta": 0.00016110276764893028,
+   "rel": 1.2362530365516133
+  },
+  {
+   "key": "aki_7d.gain_consistency.labs.spearman",
+   "before": 0.0484967623842049,
+   "after": -0.0075461640964874,
+   "delta": -0.056042926480692305,
+   "rel": -1.1556013994646608
+  },
+  {
+   "key": "icu_transfer_48h.shapley.ecg.shapley_bits",
+   "before": -0.0005262256385682,
+   "after": 6.387767080663261e-05,
+   "delta": 0.0005901033093748326,
+   "rel": 1.1213883667478393
+  },
+  {
+   "key": "icu_transfer_48h.shapley.ecg.share",
+   "before": -0.0165224803979111,
+   "after": 0.0018486508987819,
+   "delta": 0.018371131296693,
+   "rel": 1.111887008140474
+  },
+  {
+   "key": "icu_transfer_48h.gain_consistency.echo.spearman",
+   "before": -0.0010861459060355,
+   "after": 0.0255069206509466,
+   "delta": 0.0265930665569821,
+   "rel": 1.0425824003178992
+  },
+  {
+   "key": "icu_transfer_48h.decomposition.leave_one_out.ecg.p_conditional",
+   "before": 0.877624475104979,
+   "after": 0.000999800039992,
+   "delta": -0.876624675064987,
+   "rel": -0.9988607883344726
+  },
+  {
+   "key": "mortality_30d.interaction_map.labs.ecg.interaction_bits",
+   "before": 1.1883638406767264e-05,
+   "after": 0.0005466415533521,
+   "delta": 0.0005347579149453327,
+   "rel": 0.9782606383764739
+  },
+  {
+   "key": "hf_readmission_30d.variance_decomposition_full_panel.seed_share",
+   "before": 0.002391924033335864,
+   "after": 0.05295108554707546,
+   "delta": 0.0505591615137396,
+   "rel": 0.9548276676743603
+  },
+  {
+   "key": "hf_readmission_30d.variance_decomposition_full_panel.var_seed",
+   "before": 1.236290069654414e-08,
+   "after": 2.675261703404116e-07,
+   "delta": 2.5516326964386745e-07,
+   "rel": 0.9537880698519586
+  },
+  {
+   "key": "aki_7d.gain_consistency.echo.spearman",
+   "before": -0.0085647166924602,
+   "after": -0.0004423447287066,
+   "delta": 0.008122371963753601,
+   "rel": 0.9483526724128528
+  },
+  {
+   "key": "icu_transfer_48h.variance_decomposition_full_panel.var_seed",
+   "before": 3.9557363047951104e-07,
+   "after": 7.553238634907058e-08,
+   "delta": -3.2004124413044044e-07,
+   "rel": -0.8090560630709613
+  },
+  {
+   "key": "icu_transfer_48h.variance_decomposition_full_panel.seed_share",
+   "before": 0.1446103675650313,
+   "after": 0.033028386808066364,
+   "delta": -0.11158198075696493,
+   "rel": -0.7716042952922204
+  },
+  {
+   "key": "icu_transfer_48h.decomposition.leave_one_out.ecg.synergistic_bits",
+   "before": 0.0003394654005254,
+   "after": 0.0011245072191721,
+   "delta": 0.0007850418186467,
+   "rel": 0.698120745925201
+  },
+  {
+   "key": "aki_7d.interaction_map.labs.echo.interaction_bits",
+   "before": -0.0002713300682362,
+   "after": -8.305833733106723e-05,
+   "delta": 0.0001882717309051328,
+   "rel": 0.6938845080053467
+  },
+  {
+   "key": "icu_transfer_48h.interaction_map.labs.cxr.interaction_bits",
+   "before": 0.0007001769328999,
+   "after": 0.0002374621167612,
+   "delta": -0.00046271481613869994,
+   "rel": -0.6608541275735679
+  },
+  {
+   "key": "icu_transfer_48h.decomposition.leave_one_out.echo.redundant_bits",
+   "before": 0.0002703858303473,
+   "after": 9.26973259594962e-05,
+   "delta": -0.00017768850438780383,
+   "rel": -0.6571664800613622
+  },
+  {
+   "key": "aki_7d.decomposition.leave_one_out.echo.redundant_bits",
+   "before": 0.000884978047743,
+   "after": 0.000333766272861,
+   "delta": -0.000551211774882,
+   "rel": -0.6228536134741202
+  },
+  {
+   "key": "mortality_30d.variance_decomposition_full_panel.var_seed",
+   "before": 9.489961031950273e-07,
+   "after": 3.6920878385943837e-07,
+   "delta": -5.797873193355889e-07,
+   "rel": -0.6109480506649008
+  },
+  {
+   "key": "aki_7d.variance_decomposition_full_panel.n_seeds",
+   "before": 2.0,
+   "after": 5.0,
+   "delta": 3.0,
+   "rel": 0.6
+  },
+  {
+   "key": "hf_readmission_30d.variance_decomposition_full_panel.n_seeds",
+   "before": 2.0,
+   "after": 5.0,
+   "delta": 3.0,
+   "rel": 0.6
+  },
+  {
+   "key": "icu_transfer_48h.variance_decomposition_full_panel.n_seeds",
+   "before": 2.0,
+   "after": 5.0,
+   "delta": 3.0,
+   "rel": 0.6
+  },
+  {
+   "key": "mortality_30d.variance_decomposition_full_panel.n_seeds",
+   "before": 2.0,
+   "after": 5.0,
+   "delta": 3.0,
+   "rel": 0.6
+  },
+  {
+   "key": "hf_readmission_30d.null_gap_bits",
+   "before": 0.000536504719924058,
+   "after": 0.0002292893680849728,
+   "delta": -0.0003072153518390852,
+   "rel": -0.5726237634639475
+  }
+ ]
+}

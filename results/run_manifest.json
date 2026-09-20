@@ -4,24 +4,23 @@
     "n": 50000,
     "epochs": 130,
     "folds": 4,
-    "seeds": 2,
+    "seeds": 5,
     "results": "results",
     "mimic_root": null,
     "outcomes": "mortality_30d,hf_readmission_30d,aki_7d,icu_transfer_48h",
-    "skip": "cohort",
+    "skip": "cohort,theory",
     "force": false
   },
   "timings_seconds": {
-    "theory": 71.59631419181824,
-    "simulation": 5574.968628406525,
-    "analysis:mortality_30d": 1212.644977092743,
-    "analysis:hf_readmission_30d": 1200.5695314407349,
-    "analysis:aki_7d": 1161.806313753128,
-    "analysis:icu_transfer_48h": 1155.0310170650482,
-    "sensitivity_cohort": 193.83602833747864,
-    "sensitivity": 1225.2596938610077,
-    "paper_numbers": 0.5835752487182617,
-    "paper_tables": 0.5693483352661133
+    "simulation": 4922.778361558914,
+    "analysis:mortality_30d": 1559.3356301784515,
+    "analysis:hf_readmission_30d": 1535.9588284492493,
+    "analysis:aki_7d": 1491.853129863739,
+    "analysis:icu_transfer_48h": 1479.0948779582977,
+    "sensitivity_cohort": 110.7078766822815,
+    "sensitivity": 1530.511305809021,
+    "paper_numbers": 0.7546384334564209,
+    "paper_tables": 0.5084760189056396
   },
-  "total_seconds": 11796.865427732468
+  "total_seconds": 12631.503124952316
 }
