@@ -10,23 +10,11 @@
   booktitle = {International Conference on Machine Learning},
   year      = {2022}
 }
-@article{williams2010pid,
-  title   = {Nonnegative Decomposition of Multivariate Information},
-  author  = {Williams, Paul L. and Beer, Randall D.},
-  journal = {arXiv:1004.2515},
-  year    = {2010}
-}
 @article{bertschinger2014uniqueinfo,
   title   = {Quantifying Unique Information},
   author  = {Bertschinger, Nils and Rauh, Johannes and Olbrich, Eckehard and Jost, J{\"u}rgen and Ay, Nihat},
   journal = {Entropy},
   volume  = {16}, number = {4}, pages = {2161--2183}, year = {2014}
-}
-@article{griffith2014synergy,
-  title   = {Quantifying Synergistic Mutual Information},
-  author  = {Griffith, Virgil and Koch, Christof},
-  journal = {Guided Self-Organization: Inception},
-  pages   = {159--190}, year = {2014}
 }
 @article{schervish1989general,
   title   = {A General Method for Comparing Probability Assessors},
@@ -214,4 +202,159 @@
   title   = {Diagnosing Physician Error: A Machine Learning Approach to Low-Value Health Care},
   author  = {Mullainathan, Sendhil and Obermeyer, Ziad},
   journal = {The Quarterly Journal of Economics}, volume = {137}, number = {2}, pages = {679--727}, year = {2022}
+}
+
+@misc{williams2010pid,
+  title        = {Nonnegative Decomposition of Multivariate Information},
+  author       = {Williams, Paul L. and Beer, Randall D.},
+  year         = {2010},
+  eprint       = {1004.2515},
+  archivePrefix= {arXiv},
+  primaryClass = {cs.IT}
+}
+@incollection{griffith2014synergy,
+  title     = {Quantifying Synergistic Mutual Information},
+  author    = {Griffith, Virgil and Koch, Christof},
+  booktitle = {Guided Self-Organization: Inception},
+  series    = {Emergence, Complexity and Computation},
+  volume    = {9},
+  pages     = {159--190},
+  publisher = {Springer},
+  address   = {Berlin, Heidelberg},
+  year      = {2014}
+}
+
+% ===================================================================== %
+% Related-work citations added with the positioning section.
+% Entries marked UNCERTAIN carry a field that was not confirmed against a
+% primary source. The two 2025 works could not be verified at all from this
+% environment. VERIFY ALL OF THESE BEFORE SUBMISSION.
+% ===================================================================== %
+% --- PID: the axiom conflict and the Gaussian collapse ---
+@inproceedings{rauh2014reconsidering,
+  title     = {Reconsidering Unique Information: Towards a Multivariate Information Decomposition},
+  author    = {Rauh, Johannes and Bertschinger, Nils and Olbrich, Eckehard and Jost, J{\"u}rgen},
+  booktitle = {IEEE International Symposium on Information Theory (ISIT)},
+  pages     = {2232--2236},
+  year      = {2014}
+}
+@article{barrett2015gaussian,
+  title   = {Exploration of Synergistic and Redundant Information Sharing in Static and Dynamical {G}aussian Systems},
+  author  = {Barrett, Adam B.},
+  journal = {Physical Review E},
+  volume  = {91}, number = {5}, pages = {052802}, year = {2015}
+}
+
+% --- PID applied to multimodal learning ---
+@inproceedings{liang2023pid,
+  title     = {Quantifying and Modeling Multimodal Interactions: An Information Decomposition Framework},
+  author    = {Liang, Paul Pu and Cheng, Yun and Fan, Xiang and Ling, Chun Kai and Nie, Suzanne
+               and Chen, Richard and Deng, Zihao and Allen, Nicholas and Auerbach, Randy
+               and Mahmood, Faisal and Salakhutdinov, Ruslan and Morency, Louis-Philippe},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2023}
+}
+% UNCERTAIN: author given names and page/proceedings details unverified.
+@inproceedings{yang2025lsmi,
+  title     = {Efficient Quantification of Multimodal Interaction at Sample Level},
+  author    = {Yang, Zequn and Wang, Hongfa and Hu, Di},
+  booktitle = {International Conference on Machine Learning (ICML)},
+  year      = {2025}
+}
+
+% --- V-information beyond a baseline ---
+% UNCERTAIN: page range 1626--1639.
+@inproceedings{hewitt2021conditional,
+  title     = {Conditional Probing: Measuring Usable Information Beyond a Baseline},
+  author    = {Hewitt, John and Ethayarajh, Kawin and Liang, Percy and Manning, Christopher D.},
+  booktitle = {Conference on Empirical Methods in Natural Language Processing (EMNLP)},
+  pages     = {1626--1639},
+  year      = {2021}
+}
+
+% --- Active feature acquisition ---
+@inproceedings{ma2019eddi,
+  title     = {{EDDI}: Efficient Dynamic Discovery of High-Value Information with Partial {VAE}},
+  author    = {Ma, Chao and Tschiatschek, Sebastian and Palla, Konstantina and
+               Hern{\'a}ndez-Lobato, Jos{\'e} Miguel and Nowozin, Sebastian and Zhang, Cheng},
+  booktitle = {International Conference on Machine Learning (ICML)},
+  series    = {PMLR}, volume = {97}, pages = {4234--4243}, year = {2019}
+}
+% UNCERTAIN: PMLR 202 page range.
+@inproceedings{covert2023dfs,
+  title     = {Learning to Maximize Mutual Information for Dynamic Feature Selection},
+  author    = {Covert, Ian and Qiu, Wei and Lu, Mingyu and Kim, Na Yoon and White, Nathan and Lee, Su-In},
+  booktitle = {International Conference on Machine Learning (ICML)},
+  series    = {PMLR}, volume = {202}, year = {2023}
+}
+@inproceedings{janisch2019costly,
+  title     = {Classification with Costly Features Using Deep Reinforcement Learning},
+  author    = {Janisch, Jaromír and Pevn{\'y}, Tom{\'a}{\v s} and Lis{\'y}, Viliam},
+  booktitle = {AAAI Conference on Artificial Intelligence},
+  pages     = {3959--3966}, year = {2019}
+}
+
+% --- Guarantees, and why they do not transfer ---
+@inproceedings{krause2005nearoptimal,
+  title     = {Near-Optimal Nonmyopic Value of Information in Graphical Models},
+  author    = {Krause, Andreas and Guestrin, Carlos},
+  booktitle = {Conference on Uncertainty in Artificial Intelligence (UAI)},
+  year      = {2005}
+}
+@article{golovin2011adaptive,
+  title   = {Adaptive Submodularity: Theory and Applications in Active Learning and Stochastic Optimization},
+  author  = {Golovin, Daniel and Krause, Andreas},
+  journal = {Journal of Artificial Intelligence Research},
+  volume  = {42}, pages = {427--486}, year = {2011}
+}
+@inproceedings{mcallester2020limitations,
+  title     = {Formal Limitations on the Measurement of Mutual Information},
+  author    = {McAllester, David and Stratos, Karl},
+  booktitle = {International Conference on Artificial Intelligence and Statistics (AISTATS)},
+  series    = {PMLR}, volume = {108}, pages = {875--884}, year = {2020}
+}
+
+% --- Decision-analytic value of information ---
+@article{howard1966ivt,
+  title   = {Information Value Theory},
+  author  = {Howard, Ronald A.},
+  journal = {IEEE Transactions on Systems Science and Cybernetics},
+  volume  = {2}, number = {1}, pages = {22--26}, year = {1966}
+}
+@article{ades2004evsi,
+  title   = {Expected Value of Sample Information Calculations in Medical Decision Modeling},
+  author  = {Ades, A. E. and Lu, G. and Claxton, K.},
+  journal = {Medical Decision Making},
+  volume  = {24}, number = {2}, pages = {207--227}, year = {2004}
+}
+% UNCERTAIN: volume/issue/pages (believed 42(5):661--671); journal and title verified.
+@article{sadatsafavi2022voi,
+  title   = {Uncertainty and the Value of Information in Risk Prediction Modeling},
+  author  = {Sadatsafavi, Mohsen and Lee, Tae Yoon and Gustafson, Paul},
+  journal = {Medical Decision Making},
+  volume  = {42}, number = {5}, pages = {661--671}, year = {2022}
+}
+% UNCERTAIN: pages confirmed only from index records.
+@article{basu2007evic,
+  title   = {Value of Information on Preference Heterogeneity and Individualized Care},
+  author  = {Basu, Anirban and Meltzer, David},
+  journal = {Medical Decision Making},
+  volume  = {27}, number = {2}, pages = {112--127}, year = {2007}
+}
+% UNCERTAIN: full author list is truncated -- resolve before submission.
+@article{erion2022coai,
+  title   = {A Cost-Aware Framework for the Development of {AI} Models for Healthcare Applications},
+  author  = {Erion, Gabriel and Janizek, Joseph D. and Hudelson, Carly and others},
+  journal = {Nature Biomedical Engineering},
+  volume  = {6}, pages = {1384--1398}, year = {2022}
+}
+
+% --- Missingness in multimodal informativeness ---
+% UNCERTAIN: a peer-reviewed venue may exist; cited here as a preprint.
+@misc{choi2025icym2i,
+  title        = {{ICYM2I}: The Illusion of Multimodal Informativeness Under Missingness},
+  author       = {Choi, Young Sang and Jeanselme, Vincent and Elias, Pierre and Joshi, Shalmali},
+  year         = {2025},
+  eprint       = {2505.16953},
+  archivePrefix= {arXiv}
 }

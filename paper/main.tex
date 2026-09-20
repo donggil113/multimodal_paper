@@ -228,6 +228,143 @@ conditional question -- what does the radiograph add \emph{given} the
 electrocardiogram, \emph{for this patient} -- cannot be posed at all.
 
 % ===================================================================== %
+% ===================================================================== %
+\section{Related work}
+
+The vocabulary this paper uses is borrowed, and we claim none of it. Unique,
+redundant and synergistic information are the partial information
+decomposition's \citep{williams2010pid}, as is the lattice that organises them;
+the marginal-based definition of unique information that most applied work now
+uses is Bertschinger et al.'s \citep{bertschinger2014uniqueinfo}, and the
+whole-minus-union reading of synergy is Griffith and Koch's
+\citep{griffith2014synergy}. What that literature has not settled is which
+redundancy functional is correct, and the obstruction is a theorem rather than a
+matter of taste: the identity property is incompatible with non-negativity of the
+lattice atoms once there are three or more sources \citep{rauh2014reconsidering},
+so a panel of tests forces a choice that changes the reported numbers. The
+deflationary case is equally instructive --- in jointly Gaussian systems the
+competing measures collapse to a single minimum-mutual-information decomposition
+whose redundancy does not depend on the correlation between the sources
+\citep{barrett2015gaussian}, which is precisely the dependence a clinician means
+by ``these two tests are redundant''. The closest application of this machinery
+to multimodal learning is Liang et al.\ \citep{liang2023pid}, who contribute two
+estimators that scale the bivariate atoms to high-dimensional data and use the
+resulting dataset-level profile to select a fusion architecture; Yang et al.\
+\citep{yang2025lsmi} make the atoms sample-level, but post hoc, since both
+modalities and the label must already be observed. The computationally bounded
+quantity we build on is likewise not ours: $\Vc$-usable information is Xu et al.'s
+\citep{xu2020vinfo}, its pointwise form and the dataset-difficulty reading are
+Ethayarajh et al.'s \citep{ethayarajh2022pvi}, and measuring usable information
+beyond a baseline representation is Hewitt et al.'s \citep{hewitt2021conditional}.
+Our departure is narrow and we state it narrowly. We do not adjudicate the
+redundancy axioms; we decline to define redundancy in the abstract, define it
+relative to a stated context $S$ of tests already performed, and obtain terms
+that are differences of estimable quantities rather than solutions of an
+axiomatic program. And where pointwise $\Vc$-information scores an instance whose
+label is known, $\Delta_i(m\mid S)$ is an expectation over both the unobserved
+test result and the unobserved outcome, so it exists before the test is ordered.
+
+That prospective quantity is Lindley's expected information gain
+\citep{lindley1956measure,chaloner1995bayesian} evaluated inside $\Vc$, and the
+objection we take as a starting point is Howard's \citep{howard1966ivt}: a
+measure defined over outcome probabilities alone, ignoring consequences, cannot
+value information. The active-acquisition literature acts per patient without
+answering it. EDDI \citep{ma2019eddi} scores the next feature by the expected
+divergence it induces in the target posterior under a partial-VAE imputation
+model; Covert et al.\ \citep{covert2023dfs} amortise the greedy conditional
+mutual information policy, and reinforcement-learning formulations trade error
+against a scalar feature cost \citep{janisch2019costly}. All optimise a proxy ---
+log-loss, accuracy, posterior entropy --- and none carries a guarantee: the
+near-optimality results for greedy information gathering hold where the objective
+is submodular or adaptively submodular \citep{krause2005nearoptimal,
+golovin2011adaptive}, which a fused multimodal predictor does not satisfy, and
+distribution-free high-confidence lower bounds on mutual information cannot
+exceed $O(\log n)$ from $n$ samples \citep{mcallester2020limitations}. Those two
+facts are why this literature reports cost--performance curves rather than
+certificates, and why the guarantee we state is one-sided and stated inside a
+fixed $\Vc$. The decision currency is Vickers' \citep{vickers2006decision}. Net
+benefit is already the unit of value-of-information analysis in health economics
+\citep{ades2004evsi} and has recently been used to price the epistemic
+uncertainty of a risk model itself \citep{sadatsafavi2022voi}; Basu and Meltzer's
+expected value of individualised care \citep{basu2007evic} is the closest
+classical notion of per-patient information value, though it prices preference
+heterogeneity inside a cost-effectiveness model and is evaluated as an
+expectation over a population. Cost-aware model development
+\citep{erion2022coai} fixes which features a model uses rather than which test
+this patient should receive, and Choi et al.\ \citep{choi2025icym2i} show that the
+apparent informativeness of an added modality is biased when the process that
+determined its availability is ignored --- the reason we report an overlap
+diagnostic and sign the direction of the bias under unmeasured indication rather
+than assume it away. What is new here is the join, not the ingredients:
+Theorem~\ref{thm:identity} makes the information a test adds \emph{equal} to its
+net benefit integrated across thresholds, through Schervish's representation of
+proper scoring rules \citep{schervish1989general}, so bits and the decision curve
+are one object rather than an analogy; Theorem~\ref{thm:omit} converts a
+redundancy estimate into a certificate bounding what omitting a test can cost;
+and $\Delta_i(m\mid S)$ delivers both per patient, before the result exists. We
+are not aware of prior work that supplies a prospective per-patient information
+quantity in Vickers' units together with a bound in the omission direction.
+
+\begin{table}[t]
+\centering
+\caption{Where INFOGAIN sits. Rows are the four lines of prior work the method
+borrows from; columns are the six properties a per-patient test-ordering rule
+needs. INFOGAIN does not escape the last column: like every method here it
+requires a cohort in which the same patients received several modalities.}
+\label{tab:related}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.15}
+\fittable{%
+\begin{tabular}{@{}p{0.80in}p{1.08in}p{1.00in}p{0.72in}p{0.80in}p{0.82in}p{0.70in}@{}}
+\toprule
+ & \textbf{Estimand} & \textbf{Identification}
+ & \textbf{Per-patient?} & \textbf{Decision-linked?}
+ & \textbf{Finite-sample guarantee?} & \textbf{Needs same-patient multimodal data?} \\
+\midrule
+PID (Williams--Beer / BROJA)
+ & Lattice atoms $R/U/S$ of $I(X_1,X_2;Y)$, cohort-level
+ & Fixed joint law; atoms depend on the chosen redundancy functional
+ & No
+ & No; operational only at zero vs.\ non-zero
+ & No
+ & Yes \\
+\addlinespace
+Liang et al.\ 2023
+ & Dataset-level $R/U/S$ via convex or batch estimator
+ & Inherits the axiom choice; complete cases
+ & No
+ & No; consumed by model selection
+ & No
+ & Yes, plus labels \\
+\addlinespace
+Xu et al.\ 2020 ($\Vc$-information)
+ & $\IV(X\to Y)$ relative to a predictor family
+ & Fixed $\Vc$, protocol and distribution; $X$ observed
+ & Pointwise, but needs the true label
+ & No; bits only
+ & Yes; PAC bound via Rademacher complexity of $\Vc$
+ & No \\
+\addlinespace
+EDDI / active feature acquisition
+ & Greedy conditional gain, or cost-vs-accuracy reward
+ & Imputation model; masking usually MCAR
+ & Yes, prospective
+ & Cost--accuracy proxy, no threshold
+ & No
+ & Yes, at training \\
+\addlinespace
+\textbf{INFOGAIN}
+ & $\Delta_i(m\mid S)$ and its context-relative $\Vc$-info split
+ & MAR given context, with overlap reported; MNAR signed
+ & Yes, before the result exists
+ & Exact net-benefit identity (Thm.~\ref{thm:identity})
+ & Yes; omission certificate (Thm.~\ref{thm:omit})
+ & Yes \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
 \section{Results}
 
 \subsection{A decomposition whose every term is a decision}
